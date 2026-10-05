@@ -8,6 +8,8 @@ import java.math.BigDecimal;
 public class LoaCalculateLoanResponseDto {
 
     private BigDecimal interestRate;
+    private BigDecimal ivaRate;
+    private BigDecimal ivaAmount;
     private BigDecimal totalInterest;
     private BigDecimal monthlyInstallmentAmount;
     private BigDecimal totalPayment;
