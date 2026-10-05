@@ -1,26 +1,28 @@
 package com.cbarkinozer.onlinebankingrestapi.app.acc.service;
 
-import com.cbarkinozer.onlinebankingrestapi.app.acc.dto.AccAccountActivityDto;
-import com.cbarkinozer.onlinebankingrestapi.app.acc.dto.AccMoneyActivityRequestDto;
+import com.cbarkinozer.onlinebankingrestapi.app.acc.dto.AccMoneyActivityDto;
 import com.cbarkinozer.onlinebankingrestapi.app.acc.dto.AccMoneyTransferDto;
 import com.cbarkinozer.onlinebankingrestapi.app.acc.dto.AccMoneyTransferSaveDto;
 import com.cbarkinozer.onlinebankingrestapi.app.acc.entity.AccMoneyTransfer;
+import com.cbarkinozer.onlinebankingrestapi.app.acc.enums.AccAccountActivityType;
 import com.cbarkinozer.onlinebankingrestapi.app.acc.enums.AccErrorMessage;
+import com.cbarkinozer.onlinebankingrestapi.app.acc.enums.AccMoneyTransferType;
 import com.cbarkinozer.onlinebankingrestapi.app.acc.service.entityservice.AccMoneyTransferEntityService;
 import com.cbarkinozer.onlinebankingrestapi.app.gen.enums.GenErrorMessage;
 import com.cbarkinozer.onlinebankingrestapi.app.gen.exceptions.GenBusinessException;
 import com.cbarkinozer.onlinebankingrestapi.app.gen.exceptions.IllegalFieldException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 import static org.junit.jupiter.api.Assertions.*;
-
-import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -41,71 +43,81 @@ class AccMoneyTransferServiceTest {
     @Test
     void transferMoney() {
 
-        AccMoneyTransfer accMoneyTransfer = mock(AccMoneyTransfer.class);
-        AccMoneyTransferSaveDto accMoneyTransferSaveDto = mock(AccMoneyTransferSaveDto.class);
+        AccMoneyTransferSaveDto saveDto = createSaveDto(1L, 2L, BigDecimal.valueOf(100));
 
-        when(accMoneyTransfer.getAmount()).thenReturn(BigDecimal.valueOf(100));
+        when(accMoneyTransferEntityService.save(any(AccMoneyTransfer.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        accMoneyTransferService.transferMoney(accMoneyTransferSaveDto);
+        AccMoneyTransferDto result = accMoneyTransferService.transferMoney(saveDto);
 
-        verify(accMoneyTransferEntityService.save(accMoneyTransfer));
+        assertEquals(1L, result.getAccountIdFrom());
+        assertEquals(2L, result.getAccountIdTo());
+        assertEquals(BigDecimal.valueOf(100), result.getAmount());
+        assertEquals(LocalDate.now(), result.getTransferDate());
+        assertEquals(AccMoneyTransferType.DUE, result.getTransferType());
+
+        ArgumentCaptor<AccMoneyActivityDto> outCaptor = ArgumentCaptor.forClass(AccMoneyActivityDto.class);
+        ArgumentCaptor<AccMoneyActivityDto> inCaptor = ArgumentCaptor.forClass(AccMoneyActivityDto.class);
+        verify(accAccountActivityService).moneyOut(outCaptor.capture());
+        verify(accAccountActivityService).moneyIn(inCaptor.capture());
+        verify(accMoneyTransferEntityService).save(any(AccMoneyTransfer.class));
+
+        assertEquals(1L, outCaptor.getValue().getAccountId());
+        assertEquals(AccAccountActivityType.SEND, outCaptor.getValue().getActivityType());
+        assertEquals(2L, inCaptor.getValue().getAccountId());
+        assertEquals(AccAccountActivityType.GET, inCaptor.getValue().getActivityType());
     }
 
     @Test
     void shouldNotTransferMoney_WhenMoneyTransferSaveDto_IsNull(){
 
-        GenBusinessException genBusinessException = new GenBusinessException(GenErrorMessage.PARAMETER_CANNOT_BE_NULL);
+        GenBusinessException expected = new GenBusinessException(GenErrorMessage.PARAMETER_CANNOT_BE_NULL);
 
-        doThrow(GenBusinessException.class).when(accAccountValidationService).controlIsMoneyTransferSaveDtoIsNull(null);
+        doThrow(expected).when(accAccountValidationService).controlIsMoneyTransferSaveDtoIsNull(null);
 
         GenBusinessException result = assertThrows(GenBusinessException.class,
                 () -> accMoneyTransferService.transferMoney(null));
 
-        assertEquals(genBusinessException, result);
-        assertEquals(genBusinessException.getBaseErrorMessage().getMessage(), result.getBaseErrorMessage().getMessage());
-        assertEquals(genBusinessException.getBaseErrorMessage().getDetailMessage(), result.getBaseErrorMessage().getDetailMessage());
-        assertNotNull(result);
+        assertSame(expected, result);
+        verifyNoInteractions(accAccountActivityService, accMoneyTransferEntityService);
     }
 
     @Test
     void shouldNotTransferMoney_WhenAccountId_DoesNotExist(){
 
-        AccMoneyTransferSaveDto accMoneyTransferSaveDto = mock(AccMoneyTransferSaveDto.class);
+        AccMoneyTransferSaveDto saveDto = createSaveDto(0L, 2L, BigDecimal.valueOf(100));
+        IllegalFieldException expected = new IllegalFieldException(AccErrorMessage.ACCOUNT_NOT_FOUND);
 
-        IllegalFieldException illegalFieldException = new IllegalFieldException(AccErrorMessage.ACCOUNT_NOT_FOUND);
-
-        when(accMoneyTransferSaveDto.getAccountIdFrom()).thenReturn(0L);
-        when(accMoneyTransferSaveDto.getAccountIdTo()).thenReturn(0L);
-
-        doThrow(IllegalFieldException.class).when(accAccountValidationService).controlIsAccountIdExist(0L);
+        doThrow(expected).when(accAccountValidationService).controlIsAccountIdExist(0L);
 
         IllegalFieldException result = assertThrows(IllegalFieldException.class,
-                () -> accMoneyTransferService.transferMoney(accMoneyTransferSaveDto));
+                () -> accMoneyTransferService.transferMoney(saveDto));
 
-        assertEquals(illegalFieldException, result);
-        assertEquals(illegalFieldException.getBaseErrorMessage().getMessage(), result.getBaseErrorMessage().getMessage());
-        assertEquals(illegalFieldException.getBaseErrorMessage().getDetailMessage(), result.getBaseErrorMessage().getDetailMessage());
-        assertNotNull(result);
+        assertSame(expected, result);
+        verifyNoInteractions(accAccountActivityService, accMoneyTransferEntityService);
     }
 
     @Test
-    void shouldNotDeposit_WhenAmount_IsPositive(){
+    void shouldNotTransferMoney_WhenAmount_IsNotPositive(){
 
-        AccMoneyActivityRequestDto accMoneyActivityRequestDto = mock(AccMoneyActivityRequestDto.class);
+        AccMoneyTransferSaveDto saveDto = createSaveDto(1L, 2L, BigDecimal.ZERO);
+        IllegalFieldException expected = new IllegalFieldException(AccErrorMessage.AMOUNT_MUST_BE_POSITIVE);
 
-        IllegalFieldException illegalFieldException = new IllegalFieldException(AccErrorMessage.ACCOUNT_NOT_FOUND);
-
-        when(accMoneyActivityRequestDto.getAmount()).thenReturn(BigDecimal.valueOf(0L));
-
-        doThrow(IllegalFieldException.class).when(accAccountValidationService).controlIsAmountPositive(BigDecimal.valueOf(-1));
+        doThrow(expected).when(accAccountValidationService).controlIsAmountPositive(BigDecimal.ZERO);
 
         IllegalFieldException result = assertThrows(IllegalFieldException.class,
-                () -> accAccountActivityService.deposit(accMoneyActivityRequestDto));
+                () -> accMoneyTransferService.transferMoney(saveDto));
 
-        assertEquals(illegalFieldException, result);
-        assertEquals(illegalFieldException.getBaseErrorMessage().getMessage(), result.getBaseErrorMessage().getMessage());
-        assertEquals(illegalFieldException.getBaseErrorMessage().getDetailMessage(), result.getBaseErrorMessage().getDetailMessage());
-        assertNotNull(result);
+        assertSame(expected, result);
+        verifyNoInteractions(accAccountActivityService, accMoneyTransferEntityService);
+    }
 
+    private AccMoneyTransferSaveDto createSaveDto(Long from, Long to, BigDecimal amount) {
+        AccMoneyTransferSaveDto saveDto = new AccMoneyTransferSaveDto();
+        saveDto.setAccountIdFrom(from);
+        saveDto.setAccountIdTo(to);
+        saveDto.setAmount(amount);
+        saveDto.setDescription("test transfer");
+        saveDto.setTransferType(AccMoneyTransferType.DUE);
+        return saveDto;
     }
 }

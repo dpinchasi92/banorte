@@ -11,20 +11,23 @@ import com.cbarkinozer.onlinebankingrestapi.app.gen.exceptions.IllegalFieldExcep
 import com.cbarkinozer.onlinebankingrestapi.app.gen.exceptions.ItemNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
-
-import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class CusCustomerServiceTest {
+
+    private static final Long CUSTOMER_ID = 1L;
 
     @Mock
     private CusCustomerEntityService cusCustomerEntityService;
@@ -32,221 +35,139 @@ class CusCustomerServiceTest {
     @Mock
     private CusCustomerValidationService cusCustomerValidationService;
 
+    @Mock
+    private PasswordEncoder passwordEncoder;
+
     @InjectMocks
     private CusCustomerService cusCustomerService;
 
     @Test
     void shouldFindAllCustomers() {
 
-        List<CusCustomer> cusCustomerList = createDummyCusCustomerList();
+        List<CusCustomer> cusCustomerList = new ArrayList<>();
+        cusCustomerList.add(createDummyCusCustomer());
 
-        List<CusCustomerDto> expectedResult = createDummyCusCustomerDtoList();
+        List<CusCustomerDto> expectedResult = new ArrayList<>();
+        expectedResult.add(createDummyCusCustomerDto());
 
         when(cusCustomerEntityService.findAllCustomers()).thenReturn(cusCustomerList);
 
         List<CusCustomerDto> result = cusCustomerService.findAllCustomers();
 
         assertEquals(expectedResult, result);
-        assertNotNull(result);
-    }
-
-    private CusCustomer createDummyCusCustomer(){
-
-        CusCustomer cusCustomer = new CusCustomer();
-        cusCustomer.setId(1L);
-        cusCustomer.setName("testName");
-        cusCustomer.setSurname("testSurname");
-        cusCustomer.setIdentityNo(11111111111L);
-        cusCustomer.setPassword("testPassword");
-        return  cusCustomer;
-    }
-
-    private List<CusCustomer> createDummyCusCustomerList(){
-
-        List<CusCustomer>  cusCustomerList = new ArrayList<>();
-
-        CusCustomer dummyCusCustomer = createDummyCusCustomer();
-        cusCustomerList.add(dummyCusCustomer);
-
-        return cusCustomerList;
-    }
-
-    private CusCustomerDto createDummyCusCustomerDto(){
-
-        CusCustomerDto cusCustomerDto = new CusCustomerDto();
-        cusCustomerDto.setId(1L);
-        cusCustomerDto.setName("testName");
-        cusCustomerDto.setSurname("testSurname");
-        cusCustomerDto.setIdentityNo(11111111111L);
-
-        return  cusCustomerDto;
-    }
-    private List<CusCustomerDto> createDummyCusCustomerDtoList(){
-
-        List<CusCustomerDto>  cusCustomerDtoList = new ArrayList<>();
-
-        CusCustomerDto dummyCusCustomerDto = createDummyCusCustomerDto();
-        cusCustomerDtoList.add(dummyCusCustomerDto);
-
-        return cusCustomerDtoList;
     }
 
     @Test
     void shouldFindCustomerById() {
 
-        CusCustomer cusCustomer = createDummyCusCustomer();
-        Long cusCustomerId = cusCustomer.getId();
-        CusCustomerDto expectedResult = createDummyCusCustomerDto();
+        when(cusCustomerEntityService.getByIdWithControl(CUSTOMER_ID)).thenReturn(createDummyCusCustomer());
 
-        when(cusCustomerEntityService.getByIdWithControl(cusCustomerId)).thenReturn(cusCustomer);
+        CusCustomerDto result = cusCustomerService.findCustomerById(CUSTOMER_ID);
 
-        CusCustomerDto result = cusCustomerService.findCustomerById(cusCustomerId);
-
-        assertEquals(expectedResult, result);
-        assertNotNull(result);
+        assertEquals(createDummyCusCustomerDto(), result);
     }
 
     @Test
     void shouldNotFindCustomerById_WhenCusCustomerId_DoesNotExist() {
 
-        ItemNotFoundException itemNotFoundException = new ItemNotFoundException(GenErrorMessage.ITEM_NOT_FOUND);
+        ItemNotFoundException expected = new ItemNotFoundException(GenErrorMessage.ITEM_NOT_FOUND);
 
-        when(cusCustomerEntityService.getByIdWithControl(anyLong())).thenThrow(itemNotFoundException);
+        when(cusCustomerEntityService.getByIdWithControl(CUSTOMER_ID)).thenThrow(expected);
 
         ItemNotFoundException result = assertThrows(ItemNotFoundException.class,
-                () -> cusCustomerService.findCustomerById(anyLong()));
+                () -> cusCustomerService.findCustomerById(CUSTOMER_ID));
 
-        assertEquals(itemNotFoundException, result);
-        assertEquals(itemNotFoundException.getBaseErrorMessage().getMessage(), result.getBaseErrorMessage().getMessage());
-        assertEquals(itemNotFoundException.getBaseErrorMessage().getDetailMessage(), result.getBaseErrorMessage().getDetailMessage());
-        assertNotNull(result);
+        assertSame(expected, result);
     }
 
     @Test
     void shouldSaveCustomer() {
 
-        CusCustomerDto cusCustomerDto = createDummyCusCustomerDto();
-        CusCustomer cusCustomer = createDummyCusCustomer();
+        CusCustomerSaveDto cusCustomerSaveDto = createDummyCusCustomerSaveDto();
 
-        when(cusCustomerEntityService.saveCustomer(any())).thenReturn(cusCustomer);
+        when(passwordEncoder.encode("test1234")).thenReturn("encoded");
+        when(cusCustomerEntityService.saveCustomer(any(CusCustomer.class))).thenReturn(createDummyCusCustomer());
 
-        CusCustomerDto result = cusCustomerService.saveCustomer(any());
+        CusCustomerDto result = cusCustomerService.saveCustomer(cusCustomerSaveDto);
 
-        assertEquals(cusCustomerDto, result);
-        assertNotNull(result);
+        assertEquals(createDummyCusCustomerDto(), result);
+
+        ArgumentCaptor<CusCustomer> captor = ArgumentCaptor.forClass(CusCustomer.class);
+        verify(cusCustomerEntityService).saveCustomer(captor.capture());
+        assertEquals("encoded", captor.getValue().getPassword());
     }
 
     @Test
     void shouldNotSaveCustomer_WhenIdentityNo_IsNotUnique() {
 
-        CusCustomerSaveDto cusCustomerSaveDto = createDummyCusCustomerSaveDto();
-        CusCustomer cusCustomer = createDummyCusCustomer();
-        IllegalFieldException illegalFieldException = new IllegalFieldException(CusErrorMessage.IDENTITY_NO_MUST_BE_UNIQUE);
+        IllegalFieldException expected = new IllegalFieldException(CusErrorMessage.IDENTITY_NO_MUST_BE_UNIQUE);
 
-        doThrow(IllegalFieldException.class).when(cusCustomerValidationService).controlIsIdentityNoUnique(cusCustomer);
+        doThrow(expected).when(cusCustomerValidationService).controlIsIdentityNoUnique(any(CusCustomer.class));
 
         IllegalFieldException result = assertThrows(IllegalFieldException.class,
-                () -> cusCustomerService.saveCustomer(cusCustomerSaveDto));
+                () -> cusCustomerService.saveCustomer(createDummyCusCustomerSaveDto()));
 
-        assertEquals(illegalFieldException, result);
-        assertEquals(illegalFieldException.getBaseErrorMessage().getMessage(), result.getBaseErrorMessage().getMessage());
-        assertEquals(illegalFieldException.getBaseErrorMessage().getDetailMessage(), result.getBaseErrorMessage().getDetailMessage());
-        assertNotNull(result);
+        assertSame(expected, result);
+        verify(cusCustomerEntityService, never()).saveCustomer(any());
     }
 
     @Test
     void shouldNotSaveCustomer_WhenFields_AreNull() {
 
-        CusCustomerSaveDto cusCustomerSaveDto = createDummyCusCustomerSaveDto();
-        CusCustomer cusCustomer = createDummyCusCustomer();
+        IllegalFieldException expected = new IllegalFieldException(CusErrorMessage.FIELD_CANNOT_BE_NULL);
 
-        IllegalFieldException illegalFieldException = new IllegalFieldException(CusErrorMessage.FIELD_CANNOT_BE_NULL);
-
-        doThrow(IllegalFieldException.class).when(cusCustomerValidationService).controlAreFieldsNonNull(cusCustomer);
+        doThrow(expected).when(cusCustomerValidationService).controlAreFieldsNonNull(any(CusCustomer.class));
 
         IllegalFieldException result = assertThrows(IllegalFieldException.class,
-                () -> cusCustomerService.saveCustomer(cusCustomerSaveDto));
+                () -> cusCustomerService.saveCustomer(createDummyCusCustomerSaveDto()));
 
-        assertEquals(illegalFieldException, result);
-        assertEquals(illegalFieldException.getBaseErrorMessage().getMessage(), result.getBaseErrorMessage().getMessage());
-        assertEquals(illegalFieldException.getBaseErrorMessage().getDetailMessage(), result.getBaseErrorMessage().getDetailMessage());
-        assertNotNull(result);
-    }
-
-    private CusCustomerSaveDto createDummyCusCustomerSaveDto(){
-
-        CusCustomerSaveDto cusCustomerSaveDto = new CusCustomerSaveDto();
-
-        cusCustomerSaveDto.setName("testName");
-        cusCustomerSaveDto.setSurname("testSurname");
-        cusCustomerSaveDto.setIdentityNo(11111111111L);
-        cusCustomerSaveDto.setPassword("test1234");
-
-        return cusCustomerSaveDto;
+        assertSame(expected, result);
+        verify(cusCustomerEntityService, never()).saveCustomer(any());
     }
 
     @Test
     void shouldUpdateCustomer() {
 
-        CusCustomerDto cusCustomerDto = createDummyCusCustomerDto();
-        CusCustomer cusCustomer = createDummyCusCustomer();
+        CusCustomerUpdateDto cusCustomerUpdateDto = createDummyCusCustomerUpdateDto();
+        CusCustomer existing = createDummyCusCustomer();
+        existing.setPassword(cusCustomerUpdateDto.getPassword());
 
-        when(cusCustomerEntityService.saveCustomer(any())).thenReturn(cusCustomer);
+        when(cusCustomerEntityService.findCustomerById(CUSTOMER_ID)).thenReturn(existing);
+        when(cusCustomerEntityService.saveCustomer(any(CusCustomer.class))).thenReturn(createDummyCusCustomer());
 
-        CusCustomerDto result = cusCustomerService.saveCustomer(any());
+        CusCustomerDto result = cusCustomerService.updateCustomer(cusCustomerUpdateDto);
 
-        assertEquals(cusCustomerDto, result);
-        assertNotNull(result);
+        assertEquals(createDummyCusCustomerDto(), result);
+        verify(cusCustomerValidationService).controlIsCustomerExist(CUSTOMER_ID);
+        verifyNoInteractions(passwordEncoder);
     }
 
     @Test
     void shouldNotUpdateCustomer_WhenIdentityNo_IsNotUnique() {
 
-        CusCustomerUpdateDto cusCustomerUpdateDto = createDummyCusCustomerUpdateDto();
-        CusCustomer cusCustomer = createDummyCusCustomer();
-        IllegalFieldException illegalFieldException = new IllegalFieldException(CusErrorMessage.IDENTITY_NO_MUST_BE_UNIQUE);
+        IllegalFieldException expected = new IllegalFieldException(CusErrorMessage.IDENTITY_NO_MUST_BE_UNIQUE);
 
-        doThrow(IllegalFieldException.class).when(cusCustomerValidationService).controlIsIdentityNoUnique(cusCustomer);
+        doThrow(expected).when(cusCustomerValidationService).controlIsIdentityNoUnique(any(CusCustomer.class));
 
         IllegalFieldException result = assertThrows(IllegalFieldException.class,
-                () -> cusCustomerService.updateCustomer(cusCustomerUpdateDto));
+                () -> cusCustomerService.updateCustomer(createDummyCusCustomerUpdateDto()));
 
-        assertEquals(illegalFieldException, result);
-        assertEquals(illegalFieldException.getBaseErrorMessage().getMessage(), result.getBaseErrorMessage().getMessage());
-        assertEquals(illegalFieldException.getBaseErrorMessage().getDetailMessage(), result.getBaseErrorMessage().getDetailMessage());
-        assertNotNull(result);
-    }
-
-    private CusCustomerUpdateDto createDummyCusCustomerUpdateDto(){
-
-        CusCustomerUpdateDto cusCustomerUpdateDto = new CusCustomerUpdateDto();
-
-        cusCustomerUpdateDto.setId(1L);
-        cusCustomerUpdateDto.setName("testName");
-        cusCustomerUpdateDto.setSurname("testSurname");
-        cusCustomerUpdateDto.setIdentityNo(11111111111L);
-        cusCustomerUpdateDto.setPassword("test1234");
-
-        return cusCustomerUpdateDto;
+        assertSame(expected, result);
+        verify(cusCustomerEntityService, never()).saveCustomer(any());
     }
 
     @Test
     void shouldNotUpdateCustomer_WhenFields_AreNull() {
 
-        CusCustomerUpdateDto cusCustomerUpdateDto = createDummyCusCustomerUpdateDto();
-        CusCustomer cusCustomer = createDummyCusCustomer();
+        IllegalFieldException expected = new IllegalFieldException(CusErrorMessage.FIELD_CANNOT_BE_NULL);
 
-        IllegalFieldException illegalFieldException = new IllegalFieldException(CusErrorMessage.FIELD_CANNOT_BE_NULL);
-
-        doThrow(IllegalFieldException.class).when(cusCustomerValidationService).controlAreFieldsNonNull(cusCustomer);
+        doThrow(expected).when(cusCustomerValidationService).controlAreFieldsNonNull(any(CusCustomer.class));
 
         IllegalFieldException result = assertThrows(IllegalFieldException.class,
-                () -> cusCustomerService.updateCustomer(cusCustomerUpdateDto));
+                () -> cusCustomerService.updateCustomer(createDummyCusCustomerUpdateDto()));
 
-        assertEquals(illegalFieldException, result);
-        assertEquals(illegalFieldException.getBaseErrorMessage().getMessage(), result.getBaseErrorMessage().getMessage());
-        assertEquals(illegalFieldException.getBaseErrorMessage().getDetailMessage(), result.getBaseErrorMessage().getDetailMessage());
-        assertNotNull(result);
+        assertSame(expected, result);
+        verify(cusCustomerEntityService, never()).saveCustomer(any());
     }
 
     @Test
@@ -254,31 +175,66 @@ class CusCustomerServiceTest {
 
         CusCustomer cusCustomer = createDummyCusCustomer();
 
-        when(cusCustomerEntityService.getByIdWithControl(anyLong())).thenReturn(cusCustomer);
+        when(cusCustomerEntityService.getByIdWithControl(CUSTOMER_ID)).thenReturn(cusCustomer);
 
-        cusCustomerService.deleteCustomer(anyLong());
+        cusCustomerService.deleteCustomer(CUSTOMER_ID);
 
-        verify(cusCustomerEntityService).getByIdWithControl(anyLong());
+        verify(cusCustomerEntityService).delete(cusCustomer);
     }
 
     @Test
     void shouldNotDeleteCustomer_WhenId_DoesNotExist() {
 
-        CusCustomer cusCustomer = createDummyCusCustomer();
+        ItemNotFoundException expected = new ItemNotFoundException(GenErrorMessage.ITEM_NOT_FOUND);
 
-        ItemNotFoundException itemNotFoundException = new ItemNotFoundException(GenErrorMessage.ITEM_NOT_FOUND);
-
-        doThrow(new ItemNotFoundException(GenErrorMessage.ITEM_NOT_FOUND)).
-                when(cusCustomerEntityService).getByIdWithControl(anyLong());
+        when(cusCustomerEntityService.getByIdWithControl(CUSTOMER_ID)).thenThrow(expected);
 
         ItemNotFoundException result = assertThrows(ItemNotFoundException.class,
-                () -> cusCustomerEntityService.delete(cusCustomer));
+                () -> cusCustomerService.deleteCustomer(CUSTOMER_ID));
 
-        verify(cusCustomerEntityService).getByIdWithControl(anyLong());
-        assertEquals(itemNotFoundException, result);
-        assertEquals(itemNotFoundException.getBaseErrorMessage().getMessage(), result.getBaseErrorMessage().getMessage());
-        assertEquals(itemNotFoundException.getBaseErrorMessage().getDetailMessage(), result.getBaseErrorMessage().getDetailMessage());
-        assertNotNull(result);
+        assertSame(expected, result);
+        verify(cusCustomerEntityService, never()).delete(any());
     }
 
+    private CusCustomer createDummyCusCustomer(){
+
+        CusCustomer cusCustomer = new CusCustomer();
+        cusCustomer.setId(CUSTOMER_ID);
+        cusCustomer.setName("testName");
+        cusCustomer.setSurname("testSurname");
+        cusCustomer.setIdentityNo(11111111111L);
+        cusCustomer.setPassword("testPassword");
+        return  cusCustomer;
+    }
+
+    private CusCustomerDto createDummyCusCustomerDto(){
+
+        CusCustomerDto cusCustomerDto = new CusCustomerDto();
+        cusCustomerDto.setId(CUSTOMER_ID);
+        cusCustomerDto.setName("testName");
+        cusCustomerDto.setSurname("testSurname");
+        cusCustomerDto.setIdentityNo(11111111111L);
+        return  cusCustomerDto;
+    }
+
+    private CusCustomerSaveDto createDummyCusCustomerSaveDto(){
+
+        CusCustomerSaveDto cusCustomerSaveDto = new CusCustomerSaveDto();
+        cusCustomerSaveDto.setName("testName");
+        cusCustomerSaveDto.setSurname("testSurname");
+        cusCustomerSaveDto.setIdentityNo(11111111111L);
+        cusCustomerSaveDto.setPassword("test1234");
+        return cusCustomerSaveDto;
+    }
+
+    private CusCustomerUpdateDto createDummyCusCustomerUpdateDto(){
+
+        CusCustomerUpdateDto cusCustomerUpdateDto = new CusCustomerUpdateDto();
+        cusCustomerUpdateDto.setId(CUSTOMER_ID);
+        cusCustomerUpdateDto.setName("testName");
+        cusCustomerUpdateDto.setSurname("testSurname");
+        cusCustomerUpdateDto.setIdentityNo(11111111111L);
+        cusCustomerUpdateDto.setPassword("test1234");
+        return cusCustomerUpdateDto;
+    }
 }

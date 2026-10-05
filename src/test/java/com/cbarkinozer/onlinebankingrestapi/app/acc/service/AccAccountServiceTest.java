@@ -3,7 +3,13 @@ package com.cbarkinozer.onlinebankingrestapi.app.acc.service;
 import com.cbarkinozer.onlinebankingrestapi.app.acc.dto.AccAccountDto;
 import com.cbarkinozer.onlinebankingrestapi.app.acc.dto.AccAccountSaveDto;
 import com.cbarkinozer.onlinebankingrestapi.app.acc.entity.AccAccount;
+import com.cbarkinozer.onlinebankingrestapi.app.acc.enums.AccAccountType;
+import com.cbarkinozer.onlinebankingrestapi.app.acc.enums.AccCurrencyType;
+import com.cbarkinozer.onlinebankingrestapi.app.acc.enums.AccErrorMessage;
 import com.cbarkinozer.onlinebankingrestapi.app.acc.service.entityservice.AccAccountEntityService;
+import com.cbarkinozer.onlinebankingrestapi.app.cus.enums.CusErrorMessage;
+import com.cbarkinozer.onlinebankingrestapi.app.gen.enums.GenErrorMessage;
+import com.cbarkinozer.onlinebankingrestapi.app.gen.enums.GenStatusType;
 import com.cbarkinozer.onlinebankingrestapi.app.gen.exceptions.IllegalFieldException;
 import com.cbarkinozer.onlinebankingrestapi.app.gen.exceptions.ItemNotFoundException;
 import org.junit.jupiter.api.Test;
@@ -17,10 +23,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class AccAccountServiceTest {
+
+    private static final Long ACCOUNT_ID = 1L;
+    private static final Long CUSTOMER_ID = 5L;
 
     @Mock
     private AccAccountEntityService accAccountEntityService;
@@ -34,23 +44,21 @@ class AccAccountServiceTest {
     @Test
     void shouldFindAllAccounts() {
 
-        AccAccount accAccount = mock(AccAccount.class);
         List<AccAccount> accAccountList = new ArrayList<>();
-        accAccountList.add(accAccount);
+        accAccountList.add(createAccount());
 
         when(accAccountEntityService.findAllActiveAccounts()).thenReturn(accAccountList);
 
         List<AccAccountDto> result = accAccountService.findAllAccounts();
 
         assertEquals(1, result.size());
+        assertEquals(ACCOUNT_ID, result.get(0).getId());
     }
 
     @Test
     void shouldFindAllAccounts_WhenAccountList_IsEmpty() {
 
-        List<AccAccount> accAccountList = new ArrayList<>();
-
-        when(accAccountEntityService.findAllActiveAccounts()).thenReturn(accAccountList);
+        when(accAccountEntityService.findAllActiveAccounts()).thenReturn(new ArrayList<>());
 
         List<AccAccountDto> result = accAccountService.findAllAccounts();
 
@@ -60,133 +68,150 @@ class AccAccountServiceTest {
     @Test
     void shouldFindAccountById() {
 
-        Long id = 1L;
+        when(accAccountEntityService.getByIdWithControl(ACCOUNT_ID)).thenReturn(createAccount());
 
-        AccAccount accAccount = mock(AccAccount.class);
-        when(accAccount.getId()).thenReturn(id);
+        AccAccountDto accAccountDto = accAccountService.findAccountById(ACCOUNT_ID);
 
-        when(accAccountEntityService.getByIdWithControl(id)).thenReturn(accAccount);
-
-        AccAccountDto accAccountDto = accAccountService.findAccountById(id);
-
-        assertEquals(id, accAccountDto.getId());
-    }
-
-    @Test
-    void shouldNotFindProductById_WhenId_DoesNotExist(){
-
-        when(accAccountEntityService.getByIdWithControl(anyLong())).thenThrow(ItemNotFoundException.class);
-
-        assertThrows(ItemNotFoundException.class, () -> accAccountService.findAccountById(anyLong()));
-
-        verify(accAccountEntityService).getByIdWithControl(anyLong());
-    }
-
-    @Test
-    void shouldFindAccountByCustomerId() {
-
-        AccAccount accAccount = mock(AccAccount.class);
-        List<AccAccount> accAccountList = new ArrayList<AccAccount>();
-        accAccountList.add(accAccount);
-
-        when(accAccountEntityService.findAccountByCustomerId(accAccount.getCustomerId()))
-                .thenReturn(accAccountList);
-
-        List<AccAccountDto> result = accAccountService.findAccountByCustomerId(accAccount.getCustomerId());
-
-        assertEquals(1, result.size());
+        assertEquals(ACCOUNT_ID, accAccountDto.getId());
     }
 
     @Test
     void shouldNotFindAccountById_WhenId_DoesNotExist(){
 
-        when(accAccountEntityService.getByIdWithControl(anyLong())).thenThrow(ItemNotFoundException.class);
+        ItemNotFoundException expected = new ItemNotFoundException(GenErrorMessage.ITEM_NOT_FOUND);
+        when(accAccountEntityService.getByIdWithControl(ACCOUNT_ID)).thenThrow(expected);
 
-        assertThrows(ItemNotFoundException.class, () -> accAccountService.findAccountById(anyLong()));
+        ItemNotFoundException result = assertThrows(ItemNotFoundException.class,
+                () -> accAccountService.findAccountById(ACCOUNT_ID));
 
-        verify(accAccountEntityService).getByIdWithControl(anyLong());
+        assertSame(expected, result);
+        verify(accAccountEntityService).getByIdWithControl(ACCOUNT_ID);
+    }
+
+    @Test
+    void shouldFindAccountByCustomerId() {
+
+        List<AccAccount> accAccountList = new ArrayList<>();
+        accAccountList.add(createAccount());
+
+        when(accAccountEntityService.findAccountByCustomerId(CUSTOMER_ID)).thenReturn(accAccountList);
+
+        List<AccAccountDto> result = accAccountService.findAccountByCustomerId(CUSTOMER_ID);
+
+        assertEquals(1, result.size());
+        assertEquals(CUSTOMER_ID, result.get(0).getCustomerId());
     }
 
     @Test
     void shouldSaveAccount() {
 
-        AccAccountSaveDto accAccountSaveDto = mock(AccAccountSaveDto.class);
+        AccAccountSaveDto saveDto = createSaveDto();
 
-        AccAccount accAccount = mock(AccAccount.class);
+        when(accAccountEntityService.getCurrentCustomerId()).thenReturn(CUSTOMER_ID);
+        when(accAccountEntityService.save(any(AccAccount.class))).thenAnswer(inv -> {
+            AccAccount saved = inv.getArgument(0);
+            saved.setId(ACCOUNT_ID);
+            return saved;
+        });
 
-        when(accAccount.getId()).thenReturn(1L);
+        AccAccountDto result = accAccountService.saveAccount(saveDto);
 
-        when(accAccountEntityService.save(any())).thenReturn(accAccount);
-
-        AccAccountDto result = accAccountService.saveAccount(accAccountSaveDto);
-
-        assertEquals(1L, result.getId());
+        assertEquals(ACCOUNT_ID, result.getId());
+        assertEquals(CUSTOMER_ID, result.getCustomerId());
+        assertEquals(GenStatusType.ACTIVE, result.getStatusType());
+        assertEquals(BigDecimal.valueOf(100), result.getCurrentBalance());
+        assertEquals(26, result.getIbanNo().length());
+        verify(accAccountValidationService).controlIsCustomerExist(CUSTOMER_ID);
     }
 
     @Test
     void shouldNotSaveAccount_WhenCustomer_DoesNotExist(){
 
-        AccAccountSaveDto accAccountSaveDto = mock(AccAccountSaveDto.class);
-        AccAccount accAccount = mock(AccAccount.class);
+        IllegalFieldException expected = new IllegalFieldException(CusErrorMessage.CUSTOMER_NOT_FOUND);
 
-        doThrow(IllegalFieldException.class).when(accAccountValidationService)
-                .controlIsCustomerExist(accAccount.getCustomerId());
+        when(accAccountEntityService.getCurrentCustomerId()).thenReturn(CUSTOMER_ID);
+        doThrow(expected).when(accAccountValidationService).controlIsCustomerExist(CUSTOMER_ID);
 
-        assertThrows(IllegalFieldException.class, () -> accAccountService.saveAccount(accAccountSaveDto));
+        IllegalFieldException result = assertThrows(IllegalFieldException.class,
+                () -> accAccountService.saveAccount(createSaveDto()));
 
-        verify(accAccountValidationService).controlAreFieldsNotNull(accAccount);
+        assertSame(expected, result);
+        verify(accAccountEntityService, never()).save(any());
     }
 
     @Test
     void shouldNotSaveAccount_WhenFields_AreNull(){
 
-        AccAccountSaveDto accAccountSaveDto = mock(AccAccountSaveDto.class);
-        AccAccount accAccount = mock(AccAccount.class);
+        IllegalFieldException expected = new IllegalFieldException(AccErrorMessage.FIELD_CANNOT_BE_NULL);
 
-        doThrow(IllegalFieldException.class).when(accAccountValidationService)
-                .controlAreFieldsNotNull(accAccount);
+        when(accAccountEntityService.getCurrentCustomerId()).thenReturn(CUSTOMER_ID);
+        doThrow(expected).when(accAccountValidationService).controlAreFieldsNotNull(any(AccAccount.class));
 
-        assertThrows(IllegalFieldException.class, () -> accAccountService.saveAccount(accAccountSaveDto));
+        IllegalFieldException result = assertThrows(IllegalFieldException.class,
+                () -> accAccountService.saveAccount(new AccAccountSaveDto()));
 
-        verify(accAccountValidationService).controlAreFieldsNotNull(accAccount);
+        assertSame(expected, result);
+        verify(accAccountEntityService, never()).save(any());
     }
 
     @Test
-    void shouldNotSaveAccount_WhenBalance_IsNotNegative(){
+    void shouldNotSaveAccount_WhenBalance_IsNegative(){
 
-        AccAccountSaveDto accAccountSaveDto = mock(AccAccountSaveDto.class);
-        AccAccount accAccount = mock(AccAccount.class);
+        AccAccountSaveDto saveDto = createSaveDto();
+        saveDto.setCurrentBalance(BigDecimal.valueOf(-1));
+        IllegalFieldException expected = new IllegalFieldException(AccErrorMessage.BALANCE_CANNOT_BE_NEGATIVE);
 
-        when(accAccount.getCurrentBalance()).thenReturn(BigDecimal.valueOf(-1));
-        when(accAccountSaveDto.getCurrentBalance()).thenReturn(BigDecimal.valueOf(-1));
+        when(accAccountEntityService.getCurrentCustomerId()).thenReturn(CUSTOMER_ID);
+        doThrow(expected).when(accAccountValidationService).controlIsBalanceNotNegative(any(AccAccount.class));
 
-        doThrow(IllegalFieldException.class).when(accAccountValidationService).controlIsBalanceNotNegative(accAccount);
+        IllegalFieldException result = assertThrows(IllegalFieldException.class,
+                () -> accAccountService.saveAccount(saveDto));
 
-        assertThrows(IllegalFieldException.class, () -> accAccountService.saveAccount(accAccountSaveDto));
-
-        verify(accAccountValidationService).controlIsBalanceNotNegative(accAccount);
+        assertSame(expected, result);
+        verify(accAccountEntityService, never()).save(any());
     }
 
     @Test
     void shouldCancelAccount() {
 
-        AccAccount accAccount = mock(AccAccount.class);
+        AccAccount accAccount = createAccount();
 
-        when(accAccountEntityService.getByIdWithControl(anyLong())).thenReturn(accAccount);
+        when(accAccountEntityService.getByIdWithControl(ACCOUNT_ID)).thenReturn(accAccount);
 
-        accAccountService.cancelAccount(anyLong());
+        accAccountService.cancelAccount(ACCOUNT_ID);
 
-        verify(accAccountEntityService).getByIdWithControl(anyLong());
-        verify(accAccountEntityService).save(any());
+        assertEquals(GenStatusType.PASSIVE, accAccount.getStatusType());
+        verify(accAccountEntityService).save(accAccount);
     }
 
     @Test
     void shouldNotCancelAccount_WhenId_DoesNotExist(){
 
-        when(accAccountEntityService.getByIdWithControl(anyLong())).thenThrow(ItemNotFoundException.class);
+        when(accAccountEntityService.getByIdWithControl(ACCOUNT_ID))
+                .thenThrow(new ItemNotFoundException(GenErrorMessage.ITEM_NOT_FOUND));
 
-        assertThrows(ItemNotFoundException.class, () -> accAccountService.cancelAccount(anyLong()));
+        assertThrows(ItemNotFoundException.class, () -> accAccountService.cancelAccount(ACCOUNT_ID));
 
-        verify(accAccountEntityService).getByIdWithControl(anyLong());
+        verify(accAccountEntityService, never()).save(any());
+    }
+
+    private AccAccount createAccount() {
+        AccAccount accAccount = new AccAccount();
+        accAccount.setId(ACCOUNT_ID);
+        accAccount.setCustomerId(CUSTOMER_ID);
+        accAccount.setIbanNo("12345678901234567890123456");
+        accAccount.setCurrentBalance(BigDecimal.valueOf(100));
+        accAccount.setCurrencyType(AccCurrencyType.TL);
+        accAccount.setAccountType(AccAccountType.DEPOSIT);
+        accAccount.setStatusType(GenStatusType.ACTIVE);
+        return accAccount;
+    }
+
+    private AccAccountSaveDto createSaveDto() {
+        AccAccountSaveDto saveDto = new AccAccountSaveDto();
+        saveDto.setCurrentBalance(BigDecimal.valueOf(100));
+        saveDto.setCurrencyType(AccCurrencyType.TL);
+        saveDto.setAccountType(AccAccountType.DEPOSIT);
+        return saveDto;
     }
 }
