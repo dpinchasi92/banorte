@@ -2,6 +2,9 @@ package com.cbarkinozer.onlinebankingrestapi.app.acc.service;
 
 import com.cbarkinozer.onlinebankingrestapi.app.acc.dto.AccAccountActivityDto;
 import com.cbarkinozer.onlinebankingrestapi.app.acc.dto.AccMoneyActivityRequestDto;
+import com.cbarkinozer.onlinebankingrestapi.app.acc.entity.AccAccount;
+import com.cbarkinozer.onlinebankingrestapi.app.acc.entity.AccAccountActivity;
+import com.cbarkinozer.onlinebankingrestapi.app.acc.enums.AccAccountActivityType;
 import com.cbarkinozer.onlinebankingrestapi.app.acc.enums.AccErrorMessage;
 import com.cbarkinozer.onlinebankingrestapi.app.acc.service.entityservice.AccAccountActivityEntityService;
 import com.cbarkinozer.onlinebankingrestapi.app.acc.service.entityservice.AccAccountEntityService;
@@ -17,10 +20,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.math.BigDecimal;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class AccAccountActivityServiceTest {
+
+    private static final Long ACCOUNT_ID = 1L;
 
     @Mock
     private AccAccountEntityService accAccountEntityService;
@@ -37,135 +43,140 @@ class AccAccountActivityServiceTest {
     @Test
     void shouldWithdraw() {
 
-        AccMoneyActivityRequestDto accMoneyActivityRequestDto = mock(AccMoneyActivityRequestDto.class);
-        AccAccountActivityDto accAccountActivityDto = mock(AccAccountActivityDto.class);
+        AccMoneyActivityRequestDto request = createRequest(ACCOUNT_ID, BigDecimal.valueOf(100));
+        AccAccount accAccount = createAccount(ACCOUNT_ID, BigDecimal.valueOf(200));
 
-        when(accAccountActivityDto.getCurrentBalance()).thenReturn(BigDecimal.valueOf(200));
-        when(accMoneyActivityRequestDto.getAmount()).thenReturn(BigDecimal.valueOf(100));
+        when(accAccountEntityService.getByIdWithControl(ACCOUNT_ID)).thenReturn(accAccount);
+        when(accAccountActivityEntityService.save(any(AccAccountActivity.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        AccAccountActivityDto result = accAccountActivityService.withdraw(accMoneyActivityRequestDto);
+        AccAccountActivityDto result = accAccountActivityService.withdraw(request);
 
-        assertEquals(BigDecimal.valueOf(100),result.getCurrentBalance());
+        assertEquals(ACCOUNT_ID, result.getAccountId());
+        assertEquals(BigDecimal.valueOf(100), result.getAmount());
+        assertEquals(BigDecimal.valueOf(100), result.getCurrentBalance());
+        assertEquals(AccAccountActivityType.WITHDRAW, result.getAccountActivityType());
+        assertEquals(BigDecimal.valueOf(100), accAccount.getCurrentBalance());
+        verify(accAccountEntityService).save(accAccount);
     }
 
     @Test
     void shouldNotWithdraw_WhenMoneyActivityRequestDto_IsNull(){
 
-        GenBusinessException genBusinessException = new GenBusinessException(GenErrorMessage.PARAMETER_CANNOT_BE_NULL);
+        GenBusinessException expected = new GenBusinessException(GenErrorMessage.PARAMETER_CANNOT_BE_NULL);
 
-        doThrow(GenBusinessException.class).when(accAccountValidationService).controlIsMoneyActivityRequestDtoNotNull(null);
+        doThrow(expected).when(accAccountValidationService).controlIsMoneyActivityRequestDtoNotNull(null);
 
         GenBusinessException result = assertThrows(GenBusinessException.class,
                 () -> accAccountActivityService.withdraw(null));
 
-        assertEquals(genBusinessException, result);
-        assertEquals(genBusinessException.getBaseErrorMessage().getMessage(), result.getBaseErrorMessage().getMessage());
-        assertEquals(genBusinessException.getBaseErrorMessage().getDetailMessage(), result.getBaseErrorMessage().getDetailMessage());
-        assertNotNull(result);
+        assertSame(expected, result);
+        verifyNoInteractions(accAccountEntityService, accAccountActivityEntityService);
     }
 
     @Test
     void shouldNotWithdraw_WhenAccountId_DoesNotExist(){
 
-        IllegalFieldException illegalFieldException = new IllegalFieldException(AccErrorMessage.ACCOUNT_NOT_FOUND);
+        AccMoneyActivityRequestDto request = createRequest(ACCOUNT_ID, BigDecimal.valueOf(100));
+        IllegalFieldException expected = new IllegalFieldException(AccErrorMessage.ACCOUNT_NOT_FOUND);
 
-        doThrow(IllegalFieldException.class).when(accAccountValidationService).controlIsAccountIdExist(0L);
+        doThrow(expected).when(accAccountValidationService).controlIsAccountIdExist(ACCOUNT_ID);
 
         IllegalFieldException result = assertThrows(IllegalFieldException.class,
-                () -> accAccountActivityService.withdraw(null));
+                () -> accAccountActivityService.withdraw(request));
 
-        assertEquals(illegalFieldException, result);
-        assertEquals(illegalFieldException.getBaseErrorMessage().getMessage(), result.getBaseErrorMessage().getMessage());
-        assertEquals(illegalFieldException.getBaseErrorMessage().getDetailMessage(), result.getBaseErrorMessage().getDetailMessage());
-        assertNotNull(result);
+        assertSame(expected, result);
+        verifyNoInteractions(accAccountEntityService, accAccountActivityEntityService);
     }
 
     @Test
-    void shouldNotWithdraw_WhenAmount_IsPositive(){
+    void shouldNotWithdraw_WhenAmount_IsNotPositive(){
 
-        IllegalFieldException illegalFieldException = new IllegalFieldException(AccErrorMessage.ACCOUNT_NOT_FOUND);
+        AccMoneyActivityRequestDto request = createRequest(ACCOUNT_ID, BigDecimal.ZERO);
+        IllegalFieldException expected = new IllegalFieldException(AccErrorMessage.AMOUNT_MUST_BE_POSITIVE);
 
-        doThrow(IllegalFieldException.class).when(accAccountValidationService).controlIsAmountPositive(BigDecimal.valueOf(-1));
+        doThrow(expected).when(accAccountValidationService).controlIsAmountPositive(BigDecimal.ZERO);
 
         IllegalFieldException result = assertThrows(IllegalFieldException.class,
-                () -> accAccountActivityService.withdraw(null));
+                () -> accAccountActivityService.withdraw(request));
 
-        assertEquals(illegalFieldException, result);
-        assertEquals(illegalFieldException.getBaseErrorMessage().getMessage(), result.getBaseErrorMessage().getMessage());
-        assertEquals(illegalFieldException.getBaseErrorMessage().getDetailMessage(), result.getBaseErrorMessage().getDetailMessage());
-        assertNotNull(result);
-
+        assertSame(expected, result);
+        verifyNoInteractions(accAccountEntityService, accAccountActivityEntityService);
     }
 
     @Test
     void shouldDeposit() {
 
-        AccMoneyActivityRequestDto accMoneyActivityRequestDto = mock(AccMoneyActivityRequestDto.class);
-        AccAccountActivityDto accAccountActivityDto = mock(AccAccountActivityDto.class);
+        AccMoneyActivityRequestDto request = createRequest(ACCOUNT_ID, BigDecimal.valueOf(100));
+        AccAccount accAccount = createAccount(ACCOUNT_ID, BigDecimal.valueOf(200));
 
-        when(accAccountActivityDto.getCurrentBalance()).thenReturn(BigDecimal.valueOf(100));
-        when(accMoneyActivityRequestDto.getAmount()).thenReturn(BigDecimal.valueOf(100));
+        when(accAccountEntityService.getByIdWithControl(ACCOUNT_ID)).thenReturn(accAccount);
+        when(accAccountActivityEntityService.save(any(AccAccountActivity.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        AccAccountActivityDto result = accAccountActivityService.deposit(accMoneyActivityRequestDto);
+        AccAccountActivityDto result = accAccountActivityService.deposit(request);
 
-        assertEquals(BigDecimal.valueOf(200),result.getCurrentBalance());
+        assertEquals(ACCOUNT_ID, result.getAccountId());
+        assertEquals(BigDecimal.valueOf(100), result.getAmount());
+        assertEquals(BigDecimal.valueOf(300), result.getCurrentBalance());
+        assertEquals(AccAccountActivityType.DEPOSIT, result.getAccountActivityType());
+        assertEquals(BigDecimal.valueOf(300), accAccount.getCurrentBalance());
+        verify(accAccountEntityService).save(accAccount);
     }
 
     @Test
     void shouldNotDeposit_WhenMoneyActivityRequestDto_IsNull(){
 
-        GenBusinessException genBusinessException = new GenBusinessException(GenErrorMessage.PARAMETER_CANNOT_BE_NULL);
+        GenBusinessException expected = new GenBusinessException(GenErrorMessage.PARAMETER_CANNOT_BE_NULL);
 
-        doThrow(GenBusinessException.class).when(accAccountValidationService).controlIsMoneyActivityRequestDtoNotNull(null);
+        doThrow(expected).when(accAccountValidationService).controlIsMoneyActivityRequestDtoNotNull(null);
 
         GenBusinessException result = assertThrows(GenBusinessException.class,
                 () -> accAccountActivityService.deposit(null));
 
-        assertEquals(genBusinessException, result);
-        assertEquals(genBusinessException.getBaseErrorMessage().getMessage(), result.getBaseErrorMessage().getMessage());
-        assertEquals(genBusinessException.getBaseErrorMessage().getDetailMessage(), result.getBaseErrorMessage().getDetailMessage());
-        assertNotNull(result);
+        assertSame(expected, result);
+        verifyNoInteractions(accAccountEntityService, accAccountActivityEntityService);
     }
 
     @Test
     void shouldNotDeposit_WhenAccountId_DoesNotExist(){
 
-        AccMoneyActivityRequestDto accMoneyActivityRequestDto = mock(AccMoneyActivityRequestDto.class);
+        AccMoneyActivityRequestDto request = createRequest(ACCOUNT_ID, BigDecimal.valueOf(100));
+        IllegalFieldException expected = new IllegalFieldException(AccErrorMessage.ACCOUNT_NOT_FOUND);
 
-        IllegalFieldException illegalFieldException = new IllegalFieldException(AccErrorMessage.ACCOUNT_NOT_FOUND);
-
-        when(accMoneyActivityRequestDto.getAccountId()).thenReturn(0L);
-
-        doThrow(IllegalFieldException.class).when(accAccountValidationService).controlIsAccountIdExist(0L);
+        doThrow(expected).when(accAccountValidationService).controlIsAccountIdExist(ACCOUNT_ID);
 
         IllegalFieldException result = assertThrows(IllegalFieldException.class,
-                () -> accAccountActivityService.deposit(accMoneyActivityRequestDto));
+                () -> accAccountActivityService.deposit(request));
 
-        assertEquals(illegalFieldException, result);
-        assertEquals(illegalFieldException.getBaseErrorMessage().getMessage(), result.getBaseErrorMessage().getMessage());
-        assertEquals(illegalFieldException.getBaseErrorMessage().getDetailMessage(), result.getBaseErrorMessage().getDetailMessage());
-        assertNotNull(result);
+        assertSame(expected, result);
+        verifyNoInteractions(accAccountEntityService, accAccountActivityEntityService);
     }
 
     @Test
     void shouldNotDeposit_WhenAmount_IsNotPositive(){
 
+        AccMoneyActivityRequestDto request = createRequest(ACCOUNT_ID, BigDecimal.ZERO);
+        IllegalFieldException expected = new IllegalFieldException(AccErrorMessage.AMOUNT_MUST_BE_POSITIVE);
 
-        AccMoneyActivityRequestDto accMoneyActivityRequestDto = mock(AccMoneyActivityRequestDto.class);
-
-        IllegalFieldException illegalFieldException = new IllegalFieldException(AccErrorMessage.ACCOUNT_NOT_FOUND);
-
-        when(accMoneyActivityRequestDto.getAmount()).thenReturn(BigDecimal.valueOf(-1));
-
-        doThrow(IllegalFieldException.class).when(accAccountValidationService).controlIsAmountPositive(BigDecimal.valueOf(-1));
+        doThrow(expected).when(accAccountValidationService).controlIsAmountPositive(BigDecimal.ZERO);
 
         IllegalFieldException result = assertThrows(IllegalFieldException.class,
-                () -> accAccountActivityService.deposit(accMoneyActivityRequestDto));
+                () -> accAccountActivityService.deposit(request));
 
-        assertEquals(illegalFieldException, result);
-        assertEquals(illegalFieldException.getBaseErrorMessage().getMessage(), result.getBaseErrorMessage().getMessage());
-        assertEquals(illegalFieldException.getBaseErrorMessage().getDetailMessage(), result.getBaseErrorMessage().getDetailMessage());
-        assertNotNull(result);
+        assertSame(expected, result);
+        verifyNoInteractions(accAccountEntityService, accAccountActivityEntityService);
+    }
 
+    private AccMoneyActivityRequestDto createRequest(Long accountId, BigDecimal amount) {
+        AccMoneyActivityRequestDto request = new AccMoneyActivityRequestDto();
+        request.setAccountId(accountId);
+        request.setAmount(amount);
+        return request;
+    }
+
+    private AccAccount createAccount(Long id, BigDecimal currentBalance) {
+        AccAccount accAccount = new AccAccount();
+        accAccount.setId(id);
+        accAccount.setCurrentBalance(currentBalance);
+        return accAccount;
     }
 }

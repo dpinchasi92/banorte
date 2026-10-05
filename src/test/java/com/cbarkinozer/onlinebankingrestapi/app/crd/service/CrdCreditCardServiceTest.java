@@ -1,15 +1,12 @@
 package com.cbarkinozer.onlinebankingrestapi.app.crd.service;
 
-import com.cbarkinozer.onlinebankingrestapi.app.acc.dto.AccAccountActivityDto;
-import com.cbarkinozer.onlinebankingrestapi.app.acc.dto.AccAccountDto;
-import com.cbarkinozer.onlinebankingrestapi.app.acc.dto.AccAccountSaveDto;
-import com.cbarkinozer.onlinebankingrestapi.app.acc.dto.AccMoneyActivityRequestDto;
-import com.cbarkinozer.onlinebankingrestapi.app.acc.entity.AccAccount;
 import com.cbarkinozer.onlinebankingrestapi.app.crd.dto.*;
 import com.cbarkinozer.onlinebankingrestapi.app.crd.entity.CrdCreditCard;
 import com.cbarkinozer.onlinebankingrestapi.app.crd.entity.CrdCreditCardActivity;
+import com.cbarkinozer.onlinebankingrestapi.app.crd.enums.CrdCreditCardActivityType;
 import com.cbarkinozer.onlinebankingrestapi.app.crd.service.entityservice.CrdCreditCardActivityEntityService;
 import com.cbarkinozer.onlinebankingrestapi.app.crd.service.entityservice.CrdCreditCardEntityService;
+import com.cbarkinozer.onlinebankingrestapi.app.gen.enums.GenStatusType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -23,14 +20,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
-
-import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class CrdCreditCardServiceTest {
+
+    private static final Long CARD_ID = 1L;
+    private static final Long CUSTOMER_ID = 5L;
 
     @Mock
     private  CrdCreditCardEntityService crdCreditCardEntityService;
@@ -47,130 +44,211 @@ class CrdCreditCardServiceTest {
     @Test
     void shouldFindAllCreditCards() {
 
-        CrdCreditCard crdCreditCard = mock(CrdCreditCard.class);
         List<CrdCreditCard> crdCreditCardList = new ArrayList<>();
-        crdCreditCardList.add(crdCreditCard);
+        crdCreditCardList.add(createCreditCard());
 
         when(crdCreditCardEntityService.findAllActiveCreditCardList()).thenReturn(crdCreditCardList);
 
         List<CrdCreditCardDto> result = crdCreditCardService.findAllCreditCards();
 
         assertEquals(1, result.size());
+        assertEquals(CARD_ID, result.get(0).getId());
     }
 
     @Test
     void shouldFindCreditCardById() {
 
-        Long id = 1L;
+        when(crdCreditCardEntityService.getByIdWithControl(CARD_ID)).thenReturn(createCreditCard());
 
-        CrdCreditCard crdCreditCard = mock(CrdCreditCard.class);
-        when(crdCreditCard.getId()).thenReturn(id);
+        CrdCreditCardDto crdCreditCardDto = crdCreditCardService.findCreditCardById(CARD_ID);
 
-        when(crdCreditCardEntityService.getByIdWithControl(id)).thenReturn(crdCreditCard);
-
-        CrdCreditCardDto crdCreditCardDto = crdCreditCardService.findCreditCardById(id);
-
-        assertEquals(id, crdCreditCardDto.getId());
+        assertEquals(CARD_ID, crdCreditCardDto.getId());
     }
 
     @Test
     void shouldGetCardDetails() {
 
-        CrdCreditCardDetailsDto crdCreditCardDetailsDto = mock(CrdCreditCardDetailsDto.class);
+        CrdCreditCard crdCreditCard = createCreditCard();
+        CrdCreditCardDetailsDto detailsDto = new CrdCreditCardDetailsDto("name", "surname",
+                crdCreditCard.getCardNo(), crdCreditCard.getExpireDate(), crdCreditCard.getCurrentDebt(),
+                crdCreditCard.getMinimumPaymentAmount(), crdCreditCard.getCutoffDate(), crdCreditCard.getDueDate());
 
-        when(crdCreditCardEntityService.getCreditCardDetails(1L)).thenReturn(crdCreditCardDetailsDto);
+        List<CrdCreditCardActivity> activityList = new ArrayList<>();
+        activityList.add(createActivity(10L, BigDecimal.valueOf(200), CrdCreditCardActivityType.SPEND));
 
-        CrdCreditCardDetailsDto result = crdCreditCardService.getCardDetails(1L);
+        LocalDateTime termEndDate = crdCreditCard.getCutoffDate().atStartOfDay();
 
-        assertNotNull(result);
+        when(crdCreditCardEntityService.getByIdWithControl(CARD_ID)).thenReturn(crdCreditCard);
+        when(crdCreditCardEntityService.getCreditCardDetails(CARD_ID)).thenReturn(detailsDto);
+        when(crdCreditCardActivityEntityService.findAllByCrdCreditCardIdAndTransactionDateBetween(
+                CARD_ID, termEndDate.minusMonths(1), termEndDate)).thenReturn(activityList);
+
+        CrdCreditCardDetailsDto result = crdCreditCardService.getCardDetails(CARD_ID);
+
+        assertSame(detailsDto, result);
+        assertEquals(1, result.getCrdCreditCardActivityDtoList().size());
+        assertEquals(10L, result.getCrdCreditCardActivityDtoList().get(0).getId());
     }
 
     @Test
     void shouldSaveCreditCard() {
 
-        CrdCreditCardSaveDto crdCreditCardSaveDto = mock(CrdCreditCardSaveDto.class);
+        CrdCreditCardSaveDto crdCreditCardSaveDto = new CrdCreditCardSaveDto();
+        crdCreditCardSaveDto.setEarning(BigDecimal.valueOf(1000));
+        crdCreditCardSaveDto.setCutOffDay(15);
 
-        CrdCreditCard crdCreditCard = mock(CrdCreditCard.class);
-
-        when(crdCreditCard.getId()).thenReturn(1L);
-
-        when(crdCreditCardEntityService.save(any())).thenReturn(crdCreditCard);
+        when(crdCreditCardEntityService.getCurrentCustomerId()).thenReturn(CUSTOMER_ID);
+        when(crdCreditCardEntityService.save(any(CrdCreditCard.class))).thenAnswer(inv -> {
+            CrdCreditCard saved = inv.getArgument(0);
+            saved.setId(CARD_ID);
+            return saved;
+        });
 
         CrdCreditCardDto result = crdCreditCardService.saveCreditCard(crdCreditCardSaveDto);
 
-        assertEquals(1L, result.getId());
+        assertEquals(CARD_ID, result.getId());
+        assertEquals(CUSTOMER_ID, result.getCusCustomerId());
+        assertEquals(BigDecimal.valueOf(3000), result.getTotalLimit());
+        assertEquals(BigDecimal.valueOf(3000), result.getAvailableCardLimit());
+        assertEquals(15, result.getCutoffDate().getDayOfMonth());
+        assertEquals(result.getCutoffDate().plusDays(10), result.getDueDate());
     }
 
     @Test
     void shouldCancelCreditCard() {
 
-        CrdCreditCard crdCreditCard = mock(CrdCreditCard.class);
+        CrdCreditCard crdCreditCard = createCreditCard();
 
-        when(crdCreditCardEntityService.getByIdWithControl(anyLong())).thenReturn(crdCreditCard);
+        when(crdCreditCardEntityService.getByIdWithControl(CARD_ID)).thenReturn(crdCreditCard);
 
-        crdCreditCardService.cancelCreditCard(anyLong());
+        crdCreditCardService.cancelCreditCard(CARD_ID);
 
-        verify(crdCreditCardEntityService).getByIdWithControl(anyLong());
-        verify(crdCreditCardEntityService).save(any());
+        assertEquals(GenStatusType.PASSIVE, crdCreditCard.getStatusType());
+        assertNotNull(crdCreditCard.getCancelDate());
+        verify(crdCreditCardEntityService).save(crdCreditCard);
     }
 
     @Test
     void shouldFindCreditCardActivityBetweenDates() {
 
-        CrdCreditCardActivity crdCreditCardActivity = mock(CrdCreditCardActivity.class);
-        List<CrdCreditCardActivity> crdCreditCardActivityList = new ArrayList<>();
-        crdCreditCardActivityList.add(crdCreditCardActivity);
+        List<CrdCreditCardActivity> activityList = new ArrayList<>();
+        activityList.add(createActivity(10L, BigDecimal.valueOf(200), CrdCreditCardActivityType.SPEND));
 
-        Long id =1L;
-        LocalDateTime startDate =LocalDateTime.now().minusDays(1);
-        LocalDateTime endDate =LocalDateTime.now().plusMonths(1);
+        LocalDate startDate = LocalDate.now();
+        LocalDate endDate = LocalDate.now().plusMonths(24);
 
         when(crdCreditCardActivityEntityService.findCreditCardActivityBetweenDates(
-                id,startDate,endDate)
-        ).thenReturn(crdCreditCardActivityList);
+                CARD_ID, startDate.atStartOfDay(), endDate.atStartOfDay())
+        ).thenReturn(activityList);
 
         List<CrdCreditCardActivityDto> result = crdCreditCardService.findCreditCardActivityBetweenDates(
-                id,LocalDate.now(),LocalDate.now().plusMonths(24));
+                CARD_ID, startDate, endDate);
 
         assertEquals(1, result.size());
+        assertEquals(10L, result.get(0).getId());
     }
 
     @Test
     void shouldSpendMoney() {
 
-        CrdCreditCardSpendDto crdCreditCardSpendDto = mock(CrdCreditCardSpendDto.class);
-        CrdCreditCardActivityDto crdCreditCardActivityDto = mock(CrdCreditCardActivityDto.class);
+        CrdCreditCard crdCreditCard = createCreditCard();
 
-        when(crdCreditCardSpendDto.getAmount()).thenReturn(BigDecimal.valueOf(200));
-        when(crdCreditCardActivityDto.getAmount()).thenReturn(BigDecimal.valueOf(200));
+        CrdCreditCardSpendDto spendDto = new CrdCreditCardSpendDto();
+        spendDto.setCardNo(crdCreditCard.getCardNo());
+        spendDto.setCvvNo(crdCreditCard.getCvvNo());
+        spendDto.setExpireDate(crdCreditCard.getExpireDate());
+        spendDto.setAmount(BigDecimal.valueOf(200));
+        spendDto.setDescription("market");
 
-        CrdCreditCardActivityDto result = crdCreditCardService.spendMoney(crdCreditCardSpendDto);
+        when(crdCreditCardEntityService.findByCardNoAndCvvNoAndExpireDate(
+                crdCreditCard.getCardNo(), crdCreditCard.getCvvNo(), crdCreditCard.getExpireDate()))
+                .thenReturn(crdCreditCard);
+        when(crdCreditCardEntityService.save(crdCreditCard)).thenReturn(crdCreditCard);
+        when(crdCreditCardActivityEntityService.save(any(CrdCreditCardActivity.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        assertEquals(BigDecimal.valueOf(200),result.getAmount());
+        CrdCreditCardActivityDto result = crdCreditCardService.spendMoney(spendDto);
+
+        assertEquals(BigDecimal.valueOf(200), result.getAmount());
+        assertEquals(CARD_ID, result.getCrdCreditCardId());
+        assertEquals(CrdCreditCardActivityType.SPEND, result.getCardActivityType());
+        assertEquals("market", result.getDescription());
+        assertEquals(BigDecimal.valueOf(200), crdCreditCard.getCurrentDebt());
+        assertEquals(BigDecimal.valueOf(800), crdCreditCard.getAvailableCardLimit());
+        verify(crdCreditCardValidationService).validateCardLimit(BigDecimal.valueOf(800));
     }
 
     @Test
     void shouldRefundMoney() {
 
-        CrdCreditCardActivityDto crdCreditCardActivityDto = mock(CrdCreditCardActivityDto.class);
+        CrdCreditCard crdCreditCard = createCreditCard();
+        crdCreditCard.setCurrentDebt(BigDecimal.valueOf(200));
+        crdCreditCard.setAvailableCardLimit(BigDecimal.valueOf(800));
 
-        when(crdCreditCardActivityDto.getAmount()).thenReturn(BigDecimal.valueOf(200));
+        CrdCreditCardActivity oldActivity = createActivity(10L, BigDecimal.valueOf(200), CrdCreditCardActivityType.SPEND);
 
-        CrdCreditCardActivityDto result = crdCreditCardService.refundMoney(1L);
+        when(crdCreditCardActivityEntityService.getByIdWithControl(10L)).thenReturn(oldActivity);
+        when(crdCreditCardEntityService.getByIdWithControl(CARD_ID)).thenReturn(crdCreditCard);
+        when(crdCreditCardEntityService.save(crdCreditCard)).thenReturn(crdCreditCard);
+        when(crdCreditCardActivityEntityService.save(any(CrdCreditCardActivity.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        assertEquals(BigDecimal.valueOf(200),result.getAmount());
+        CrdCreditCardActivityDto result = crdCreditCardService.refundMoney(10L);
+
+        assertEquals(BigDecimal.valueOf(200), result.getAmount());
+        assertEquals(CrdCreditCardActivityType.REFUND, result.getCardActivityType());
+        assertEquals("REFUND : " + oldActivity.getDescription(), result.getDescription());
+        assertEquals(0, BigDecimal.ZERO.compareTo(crdCreditCard.getCurrentDebt()));
+        assertEquals(BigDecimal.valueOf(1000), crdCreditCard.getAvailableCardLimit());
     }
 
     @Test
     void shouldReceivePayment() {
 
-        CrdCreditCardPaymentDto crdCreditCardPaymentDto = mock(CrdCreditCardPaymentDto.class);
+        CrdCreditCard crdCreditCard = createCreditCard();
+        crdCreditCard.setCurrentDebt(BigDecimal.valueOf(200));
+        crdCreditCard.setAvailableCardLimit(BigDecimal.valueOf(800));
 
-        when(crdCreditCardPaymentDto.getAmount()).thenReturn(BigDecimal.valueOf(200));
+        CrdCreditCardPaymentDto paymentDto = new CrdCreditCardPaymentDto();
+        paymentDto.setCrdCreditCardId(CARD_ID);
+        paymentDto.setAmount(BigDecimal.valueOf(200));
 
-        CrdCreditCardActivityDto result = crdCreditCardService.receivePayment(crdCreditCardPaymentDto);
+        when(crdCreditCardEntityService.getByIdWithControl(CARD_ID)).thenReturn(crdCreditCard);
+        when(crdCreditCardEntityService.save(crdCreditCard)).thenReturn(crdCreditCard);
+        when(crdCreditCardActivityEntityService.save(any(CrdCreditCardActivity.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        assertEquals(BigDecimal.valueOf(200),result.getAmount());
+        CrdCreditCardActivityDto result = crdCreditCardService.receivePayment(paymentDto);
 
+        assertEquals(BigDecimal.valueOf(200), result.getAmount());
+        assertEquals(CARD_ID, result.getCrdCreditCardId());
+        assertEquals(CrdCreditCardActivityType.PAYMENT, result.getCardActivityType());
+        assertEquals(BigDecimal.valueOf(1000), crdCreditCard.getAvailableCardLimit());
+        verify(crdCreditCardValidationService).controlAreFieldsNull(CARD_ID, BigDecimal.valueOf(200));
+    }
+
+    private CrdCreditCard createCreditCard() {
+        CrdCreditCard crdCreditCard = new CrdCreditCard();
+        crdCreditCard.setId(CARD_ID);
+        crdCreditCard.setCusCustomerId(CUSTOMER_ID);
+        crdCreditCard.setCardNo(1234567890123456L);
+        crdCreditCard.setCvvNo(123L);
+        crdCreditCard.setExpireDate(LocalDate.now().plusYears(3));
+        crdCreditCard.setTotalLimit(BigDecimal.valueOf(1000));
+        crdCreditCard.setAvailableCardLimit(BigDecimal.valueOf(1000));
+        crdCreditCard.setCurrentDebt(BigDecimal.ZERO);
+        crdCreditCard.setMinimumPaymentAmount(BigDecimal.ZERO);
+        crdCreditCard.setCutoffDate(LocalDate.now().plusDays(10));
+        crdCreditCard.setDueDate(LocalDate.now().plusDays(20));
+        crdCreditCard.setStatusType(GenStatusType.ACTIVE);
+        return crdCreditCard;
+    }
+
+    private CrdCreditCardActivity createActivity(Long id, BigDecimal amount, CrdCreditCardActivityType type) {
+        CrdCreditCardActivity activity = new CrdCreditCardActivity();
+        activity.setId(id);
+        activity.setCrdCreditCardId(CARD_ID);
+        activity.setAmount(amount);
+        activity.setDescription("market");
+        activity.setTransactionDate(LocalDateTime.now());
+        activity.setCardActivityType(type);
+        return activity;
     }
 }
