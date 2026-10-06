@@ -1,5 +1,6 @@
 package com.cbarkinozer.onlinebankingrestapi.app.loa.service;
 
+import com.cbarkinozer.onlinebankingrestapi.app.gen.config.TaxProperties;
 import com.cbarkinozer.onlinebankingrestapi.app.loa.dto.*;
 import com.cbarkinozer.onlinebankingrestapi.app.loa.entity.LoaLoan;
 import com.cbarkinozer.onlinebankingrestapi.app.loa.entity.LoaLoanPayment;
@@ -10,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
@@ -34,6 +36,9 @@ class LoaLoanServiceTest {
     @Mock
     private LoaLoanPaymentEntityService loaLoanPaymentEntityService;
 
+    @Spy
+    private TaxProperties taxProperties = new TaxProperties();
+
     @InjectMocks
     private LoaLoanService loaLoanService;
 
@@ -47,6 +52,49 @@ class LoaLoanServiceTest {
         assertTrue(result.getTotalPayment().compareTo(BigDecimal.valueOf(3000)) > 0);
         assertTrue(result.getMonthlyInstallmentAmount().compareTo(BigDecimal.ZERO) > 0);
         verify(loaLoanValidationService).controlIsParameterNotNull(24, BigDecimal.valueOf(3000));
+    }
+
+    @Test
+    void shouldApplyIvaOnLoanInterest() {
+
+        taxProperties.setIvaRate(BigDecimal.ZERO);
+        LoaCalculateLoanResponseDto withoutIva = loaLoanService.calculateLoan(24, BigDecimal.valueOf(3000));
+
+        taxProperties.setIvaRate(TaxProperties.IVA_RATE);
+        LoaCalculateLoanResponseDto withIva = loaLoanService.calculateLoan(24, BigDecimal.valueOf(3000));
+
+        BigDecimal expectedInterest = withoutIva.getTotalInterest().multiply(new BigDecimal("1.16"));
+        assertEquals(0, expectedInterest.compareTo(withIva.getTotalInterest()));
+        assertEquals(0, BigDecimal.valueOf(3045).add(expectedInterest).compareTo(withIva.getTotalPayment()));
+        verify(loaLoanValidationService).controlIsTaxRateNotNegative(new BigDecimal("0.16"));
+    }
+
+    @Test
+    void shouldUseConfiguredIvaRate() {
+
+        taxProperties.setIvaRate(BigDecimal.ZERO);
+        LoaCalculateLoanResponseDto withoutIva = loaLoanService.calculateLoan(24, BigDecimal.valueOf(3000));
+
+        taxProperties.setIvaRate(new BigDecimal("0.08"));
+        LoaCalculateLoanResponseDto reducedIva = loaLoanService.calculateLoan(24, BigDecimal.valueOf(3000));
+
+        BigDecimal expectedInterest = withoutIva.getTotalInterest().multiply(new BigDecimal("1.08"));
+        assertEquals(0, expectedInterest.compareTo(reducedIva.getTotalInterest()));
+    }
+
+    @Test
+    void shouldApplyIvaOnLateFeeInterest() {
+
+        LoaLoan loaLoan = createLoan(LocalDate.now().minusDays(10));
+
+        when(loaLoanEntityService.getByIdWithControl(LOAN_ID)).thenReturn(loaLoan);
+        when(loaLoanValidationService.controlIsLoanDueDatePast(loaLoan.getDueDate())).thenReturn(10L);
+
+        LoaCalculateLateFeeResponseDto result = loaLoanService.calculateLateFee(LOAN_ID);
+
+        BigDecimal lateFeeBeforeIva = result.getTotalLateFee().subtract(result.getLateInterestTax());
+        assertTrue(result.getLateInterestTax().compareTo(BigDecimal.ZERO) > 0);
+        assertEquals(0, lateFeeBeforeIva.multiply(new BigDecimal("0.16")).compareTo(result.getLateInterestTax()));
     }
 
     @Test

@@ -36,8 +36,5 @@ Paths are relative to `src/main/java/com/cbarkinozer/onlinebankingrestapi/`.
 
 ## 4. Tax: IVA at 16%
 
-- The tax is **IVA at 16%**. Define it as a single named constant, `new BigDecimal("0.16")`. Don't hardcode other tax rates.
-
-**Known violations (to fix):**
-- `app/loa/service/LoaLoanService.java` defines `TAX_RATE = BigDecimal.valueOf(20/100); //KKDF + BSMV` (Turkish taxes), and it's used in the loan and late-fee calculations. Replace it with IVA 16%.
-  - Also, `20/100` is integer division, so `TAX_RATE` is actually `0` today. Whoever fixes this must expect the calculation results and tests to change.
+- The tax is **IVA at 16%**. The single source of truth is `TaxProperties.IVA_RATE = new BigDecimal("0.16")` in `app/gen/config/TaxProperties.java`, which is the default for the `banorte.tax.iva-rate` property. Read the rate through `TaxProperties.getIvaRate()`; don't hardcode tax rates.
+- IVA is charged on interest (loan interest and late-fee interest), not on principal.

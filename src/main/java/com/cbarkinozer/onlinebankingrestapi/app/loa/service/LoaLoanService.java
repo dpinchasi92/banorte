@@ -1,5 +1,6 @@
 package com.cbarkinozer.onlinebankingrestapi.app.loa.service;
 
+import com.cbarkinozer.onlinebankingrestapi.app.gen.config.TaxProperties;
 import com.cbarkinozer.onlinebankingrestapi.app.loa.dto.*;
 import com.cbarkinozer.onlinebankingrestapi.app.loa.entity.LoaLoan;
 import com.cbarkinozer.onlinebankingrestapi.app.loa.entity.LoaLoanPayment;
@@ -24,9 +25,9 @@ public class LoaLoanService {
     private final LoaLoanValidationService loaLoanValidationService;
     private final LoaLoanEntityService loaLoanEntityService;
     private final LoaLoanPaymentEntityService loaLoanPaymentEntityService;
+    private final TaxProperties taxProperties;
 
     private final BigDecimal INTEREST_RATE = BigDecimal.valueOf(1.59/100);
-    private final BigDecimal TAX_RATE = BigDecimal.valueOf(20/100); //KKDF + BSMV
     private final BigDecimal ALLOCATION_FEE = BigDecimal.valueOf(45);
     private final int INSTALLMENT_COUNT_LIMIT = 360;
 
@@ -36,7 +37,8 @@ public class LoaLoanService {
 
         BigDecimal installmentCount = BigDecimal.valueOf(installment);
 
-        BigDecimal totalInterestRate = INTEREST_RATE.add(TAX_RATE);
+        BigDecimal ivaRate = taxProperties.getIvaRate();
+        BigDecimal totalInterestRate = INTEREST_RATE.multiply(BigDecimal.ONE.add(ivaRate));
 
         BigDecimal maturity = (installmentCount
                 .multiply(BigDecimal.valueOf(30))).divide(BigDecimal.valueOf(36500),RoundingMode.CEILING);
@@ -49,7 +51,7 @@ public class LoaLoanService {
         BigDecimal annualCostRate = totalInterestRate.multiply(BigDecimal.valueOf(12));
 
         loaLoanValidationService.controlIsInterestRateNotNegative(INTEREST_RATE);
-        loaLoanValidationService.controlIsTaxRateNotNegative(TAX_RATE);
+        loaLoanValidationService.controlIsTaxRateNotNegative(ivaRate);
         loaLoanValidationService.controlIsInstallmentAmountPositive(monthlyInstallmentAmount);
         loaLoanValidationService.controlIsTotalPaymentPositive(totalPayment);
 
@@ -86,7 +88,7 @@ public class LoaLoanService {
         BigDecimal totalLateFee = ((totalLoan.multiply(BigDecimal.valueOf(lateDayCount))).multiply(lateFeeRate))
                 .divide(BigDecimal.valueOf(30),RoundingMode.UP);
 
-        BigDecimal lateInterestTax = totalLateFee.multiply(TAX_RATE);
+        BigDecimal lateInterestTax = totalLateFee.multiply(taxProperties.getIvaRate());
 
         totalLateFee = totalLateFee.add(lateInterestTax);
 
@@ -138,7 +140,8 @@ public class LoaLoanService {
 
         LoaLoan loaLoan = LoaLoanMapper.INSTANCE.convertToLoaLoan(loaLoanApplyLoanDto);
 
-        BigDecimal totalInterestRate = INTEREST_RATE.add(TAX_RATE);
+        BigDecimal ivaRate = taxProperties.getIvaRate();
+        BigDecimal totalInterestRate = INTEREST_RATE.multiply(BigDecimal.ONE.add(ivaRate));
 
         BigDecimal maturity = (installmentCount
                 .multiply(BigDecimal.valueOf(30))).divide(BigDecimal.valueOf(36500),RoundingMode.CEILING);
