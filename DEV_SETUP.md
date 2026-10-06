@@ -6,18 +6,18 @@ Reproducible local setup (verified on Ubuntu 22.04).
 
 | Component  | Version |
 |------------|---------|
-| JDK        | OpenJDK 11.0.32 (`openjdk-11-jdk`, `/usr/lib/jvm/java-11-openjdk-amd64`) |
+| JDK        | OpenJDK 21 (`openjdk-21-jdk-headless`, `/usr/lib/jvm/java-21-openjdk-amd64`) |
 | Maven      | 3.8.4 (via `./mvnw`) |
 | PostgreSQL | 14 (`postgresql` apt package) |
 | Kafka      | `wurstmeister/kafka` + `wurstmeister/zookeeper` (optional, Docker) |
 
-## 1. JDK 11
+## 1. JDK 21
 
 ```bash
-sudo apt-get install -y openjdk-11-jdk
-export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
+sudo apt-get install -y openjdk-21-jdk-headless
+export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
 export PATH="$JAVA_HOME/bin:$PATH"
-java -version   # must show 11.x
+java -version   # must show 21.x
 ```
 
 If `repo.maven.apache.org` returns HTTP 429 (IP rate limit), point Maven at the
@@ -38,10 +38,7 @@ in-memory H2 datasource, so `./mvnw test` does not connect to PostgreSQL.
 ./mvnw test
 ```
 
-Current result: 140 tests, 46 failures, 26 errors. These are pre-existing failures in
-the test code (Mockito stubbing/NPEs in service tests, integration tests that
-expect pre-seeded rows with fixed IDs). The original code run against a live
-Postgres gives exactly the same per-class counts.
+All tests pass (`./mvnw -B clean verify`).
 
 ## 3. PostgreSQL
 
@@ -71,7 +68,4 @@ curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8080/swagger-ui/index.
 
 ## Known issues
 
-- `Dockerfile` is broken: the base image `adoptenjdk/openjdk11:ubi` is misspelled
-  and deprecated (it should be something like `eclipse-temurin:11-jre`), and it copies
-  `build/libs/*.jar`, which is a Gradle path (Maven writes to `target/`).
 - `H2TestProfileJPAConfig` (`@Profile("test")`) is not active in any test.

@@ -3,21 +3,28 @@ package com.cbarkinozer.onlinebankingrestapi.app.sec.security;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
 
+import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 
 @Component
 public class JwtTokenGenerator {
 
-    @Value("${onlinebankingrestapi.jwt.security.app.key}")
-    private String APP_KEY;
+    private final SecretKey signingKey;
 
-    @Value("${onlinebankingrestapi.jwt.security.expire.time}")
-    private Long EXPIRE_TIME;
+    private final Long EXPIRE_TIME;
+
+    /** HS512 requires a key of at least 512 bits (64 bytes); jjwt rejects shorter keys. */
+    public JwtTokenGenerator(@Value("${onlinebankingrestapi.jwt.security.app.key}") String appKey,
+                             @Value("${onlinebankingrestapi.jwt.security.expire.time}") Long expireTime) {
+        this.signingKey = Keys.hmacShaKeyFor(appKey.getBytes(StandardCharsets.UTF_8));
+        this.EXPIRE_TIME = expireTime;
+    }
 
     public String generateJwtToken(Authentication authentication){
 
@@ -25,10 +32,10 @@ public class JwtTokenGenerator {
         Date expireDate = new Date(new Date().getTime() + EXPIRE_TIME);
 
         String token = Jwts.builder()
-                .setSubject(Long.toString(jwtUserDetails.getId()))
-                .setIssuedAt(new Date())
-                .setExpiration(expireDate)
-                .signWith(SignatureAlgorithm.HS512, APP_KEY)
+                .subject(Long.toString(jwtUserDetails.getId()))
+                .issuedAt(new Date())
+                .expiration(expireDate)
+                .signWith(signingKey, Jwts.SIG.HS512)
                 .compact();
 
         return token;
@@ -39,7 +46,7 @@ public class JwtTokenGenerator {
         Jws<Claims> claimsJws = parseToken(token);
 
         String userIdStr = claimsJws
-                .getBody()
+                .getPayload()
                 .getSubject();
 
         return Long.parseLong(userIdStr);
@@ -47,8 +54,9 @@ public class JwtTokenGenerator {
 
     private Jws<Claims> parseToken(String token) {
         Jws<Claims> claimsJws = Jwts.parser()
-                .setSigningKey(APP_KEY)
-                .parseClaimsJws(token);
+                .verifyWith(signingKey)
+                .build()
+                .parseSignedClaims(token);
         return claimsJws;
     }
 
@@ -69,7 +77,7 @@ public class JwtTokenGenerator {
 
     private boolean isTokenExpired(Jws<Claims> claimsJws) {
 
-        Date expirationDate = claimsJws.getBody().getExpiration();
+        Date expirationDate = claimsJws.getPayload().getExpiration();
 
         return expirationDate.before(new Date());
     }
