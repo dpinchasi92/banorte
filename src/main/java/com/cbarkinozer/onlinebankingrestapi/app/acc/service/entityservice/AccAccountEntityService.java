@@ -38,8 +38,8 @@ public class AccAccountEntityService extends BaseEntityService<AccAccount, AccAc
         return accAccountList;
     }
 
-    public Optional<AccAccount> findAccountByIbanNo(Long id, String ibanNo) {
-        Optional<AccAccount> accountOptional = getDao().findByIbanNo(id,ibanNo);
+    public Optional<AccAccount> findAccountByClabe(Long id, String clabe) {
+        Optional<AccAccount> accountOptional = getDao().findByClabe(id,clabe);
 
         return accountOptional;
     }

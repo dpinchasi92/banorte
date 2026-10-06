@@ -23,9 +23,7 @@ Paths are relative to `src/main/java/com/cbarkinozer/onlinebankingrestapi/`.
 - Mexican accounts are identified by an 18-digit **CLABE**: 3-digit bank code + 3-digit branch (plaza) code + 11-digit account number + 1 check digit. Banorte's bank code is `072`.
 - Check digit: multiply each of the first 17 digits by the repeating weights `3, 7, 1`. Take each product mod 10 and add them up. The check digit is `(10 - (sum mod 10)) mod 10`.
 - New code must generate valid CLABEs and validate them (exactly 18 digits, numeric, correct check digit). Don't use IBAN.
-
-**Known violations (to fix):**
-- `app/acc/entity/AccAccount.java` has `ibanNo` (`IBAN_NO`, length 40). `app/acc/service/AccAccountService.getIbanNo()` returns 26 random digits with no check digit. The IBAN naming also appears in `AccAccountDto`, `AccAccountDao.findByIbanNo`, `AccAccountValidationService` and `AccErrorMessage`.
+- Use `app/gen/util/ClabeUtil` (`generateClabe`, `isValidClabe`, `calculateCheckDigit`) for any CLABE logic. The account field is `AccAccount.clabe` (`CLABE`, length 18).
 
 ## 3. Currency: MXN
 

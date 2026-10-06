@@ -12,7 +12,7 @@ public class AccAccountDto {
 
     private Long id;
     private Long customerId;
-    private String ibanNo;
+    private String clabe;
     private BigDecimal currentBalance;
     private AccCurrencyType currencyType;
     private AccAccountType accountType;

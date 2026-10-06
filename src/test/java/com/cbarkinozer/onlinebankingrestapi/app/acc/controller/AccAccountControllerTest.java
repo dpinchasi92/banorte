@@ -79,7 +79,7 @@ class AccAccountControllerTest {
 
         accAccountDto.setId(1L);
         accAccountDto.setCustomerId(1L);
-        accAccountDto.setIbanNo("11111111");
+        accAccountDto.setClabe("072180000118359711");
         accAccountDto.setCurrentBalance(BigDecimal.valueOf(100));
         accAccountDto.setCurrencyType(AccCurrencyType.TL);
         accAccountDto.setAccountType(AccAccountType.DEPOSIT);
@@ -186,9 +186,9 @@ class AccAccountControllerTest {
     }
 
     @Test
-    void shouldNotSaveAccount_WhenIbanNo_IsNotUnique(){
+    void shouldNotSaveAccount_WhenClabe_IsNotUnique(){
 
-        IllegalFieldException illegalFieldException = new IllegalFieldException(AccErrorMessage.IBAN_NO_IS_NOT_UNIQUE);
+        IllegalFieldException illegalFieldException = new IllegalFieldException(AccErrorMessage.CLABE_IS_NOT_UNIQUE);
         AccAccountSaveDto accAccountSaveDto = createDummyAccAccountSaveDto();
 
         when(accAccountService.saveAccount(accAccountSaveDto)).thenThrow(illegalFieldException);

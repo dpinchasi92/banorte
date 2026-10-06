@@ -7,8 +7,10 @@ public enum AccErrorMessage implements BaseErrorMessage {
             ,"Please check the id of the account."),
     INSUFFICIENT_BALANCE("Balance Is Insufficient!"
             ,"Please check your balance and the amount of money you want to send."),
-    IBAN_NO_IS_NOT_UNIQUE("IBAN Number Is Not Unique!"
-            ,"Please check if the IBAN number you entered is correct."),
+    CLABE_IS_NOT_UNIQUE("CLABE Is Not Unique!"
+            ,"Please check if the CLABE you entered is correct."),
+    CLABE_IS_NOT_VALID("CLABE Is Not Valid!"
+            ,"A CLABE must be exactly 18 digits with a valid check digit."),
     FIELD_CANNOT_BE_NULL("Field cannot be null"
             ,"Some of the fields are null, please be sure to enter all fields"),
     BALANCE_CANNOT_BE_NEGATIVE("Balance cannot assigned negative"

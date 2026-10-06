@@ -25,8 +25,8 @@ public class AccAccount extends BaseEntity {
     @Column(name="ID_CUS_CUSTOMER",nullable = false)
     private Long customerId;
 
-    @Column(name="IBAN_NO",length = 40,unique = true,nullable = false)
-    private String ibanNo;
+    @Column(name="CLABE",length = 18,unique = true,nullable = false)
+    private String clabe;
 
     @Column(name="CURRENT_BALANCE", precision = 19 ,scale =2 ,nullable = false)
     private BigDecimal currentBalance;
