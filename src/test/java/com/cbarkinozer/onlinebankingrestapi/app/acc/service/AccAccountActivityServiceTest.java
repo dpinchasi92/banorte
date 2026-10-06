@@ -166,6 +166,42 @@ class AccAccountActivityServiceTest {
         verifyNoInteractions(accAccountEntityService, accAccountActivityEntityService);
     }
 
+    @Test
+    void shouldNotWithdraw_WhenAccount_DoesNotBelongToCurrentCustomer(){
+
+        AccMoneyActivityRequestDto request = createRequest(ACCOUNT_ID, BigDecimal.valueOf(100));
+        AccAccount accAccount = createAccount(ACCOUNT_ID, BigDecimal.valueOf(200));
+        IllegalFieldException expected = new IllegalFieldException(AccErrorMessage.ACCOUNT_DOES_NOT_BELONG_TO_CUSTOMER);
+
+        when(accAccountEntityService.getByIdWithControl(ACCOUNT_ID)).thenReturn(accAccount);
+        doThrow(expected).when(accAccountValidationService).controlIsAccountOwnedByCurrentCustomer(accAccount);
+
+        IllegalFieldException result = assertThrows(IllegalFieldException.class,
+                () -> accAccountActivityService.withdraw(request));
+
+        assertSame(expected, result);
+        verify(accAccountEntityService, never()).save(any());
+        verifyNoInteractions(accAccountActivityEntityService);
+    }
+
+    @Test
+    void shouldNotDeposit_WhenAccount_DoesNotBelongToCurrentCustomer(){
+
+        AccMoneyActivityRequestDto request = createRequest(ACCOUNT_ID, BigDecimal.valueOf(100));
+        AccAccount accAccount = createAccount(ACCOUNT_ID, BigDecimal.valueOf(200));
+        IllegalFieldException expected = new IllegalFieldException(AccErrorMessage.ACCOUNT_DOES_NOT_BELONG_TO_CUSTOMER);
+
+        when(accAccountEntityService.getByIdWithControl(ACCOUNT_ID)).thenReturn(accAccount);
+        doThrow(expected).when(accAccountValidationService).controlIsAccountOwnedByCurrentCustomer(accAccount);
+
+        IllegalFieldException result = assertThrows(IllegalFieldException.class,
+                () -> accAccountActivityService.deposit(request));
+
+        assertSame(expected, result);
+        verify(accAccountEntityService, never()).save(any());
+        verifyNoInteractions(accAccountActivityEntityService);
+    }
+
     private AccMoneyActivityRequestDto createRequest(Long accountId, BigDecimal amount) {
         AccMoneyActivityRequestDto request = new AccMoneyActivityRequestDto();
         request.setAccountId(accountId);
