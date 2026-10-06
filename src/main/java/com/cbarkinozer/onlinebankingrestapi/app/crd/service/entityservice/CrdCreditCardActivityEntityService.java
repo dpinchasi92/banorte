@@ -3,6 +3,8 @@ package com.cbarkinozer.onlinebankingrestapi.app.crd.service.entityservice;
 import com.cbarkinozer.onlinebankingrestapi.app.crd.dao.CrdCreditCardActivityDao;
 import com.cbarkinozer.onlinebankingrestapi.app.crd.dto.CrdCreditCardActivityAnalysisDto;
 import com.cbarkinozer.onlinebankingrestapi.app.crd.entity.CrdCreditCardActivity;
+import com.cbarkinozer.onlinebankingrestapi.app.gen.enums.GenErrorMessage;
+import com.cbarkinozer.onlinebankingrestapi.app.gen.exceptions.ItemNotFoundException;
 import com.cbarkinozer.onlinebankingrestapi.app.gen.service.BaseEntityService;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -22,11 +24,16 @@ public class CrdCreditCardActivityEntityService extends BaseEntityService<CrdCre
         super(dao);
     }
 
-    public List<CrdCreditCardActivity> findCreditCardActivityByAmountInterval(BigDecimal min, BigDecimal max) {
+    public List<CrdCreditCardActivity> findCreditCardActivityByAmountIntervalOfCurrentCustomer(BigDecimal min, BigDecimal max) {
 
-        List<CrdCreditCardActivity> crdCreditCardActivityList = getDao().findAllByAmountBetween(min,max);
+        List<CrdCreditCardActivity> crdCreditCardActivityList = getDao().findAllByAmountBetweenAndCusCustomerId(min, max, getCurrentCustomerId());
 
         return crdCreditCardActivityList;
+    }
+
+    public CrdCreditCardActivity getByIdOfCurrentCustomerWithControl(Long id) {
+        return getDao().findByIdAndCusCustomerId(id, getCurrentCustomerId())
+                .orElseThrow(() -> new ItemNotFoundException(GenErrorMessage.ITEM_NOT_FOUND));
     }
 
     public List<CrdCreditCardActivity> findCreditCardActivityBetweenDates(

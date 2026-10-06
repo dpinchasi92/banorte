@@ -9,13 +9,19 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface CrdCreditCardDao extends JpaRepository<CrdCreditCard,Long> {
 
     List<CrdCreditCard> findAllByStatusType(GenStatusType statusType);
 
-    CrdCreditCard findByCardNoAndCvvNoAndExpireDateAndStatusType(Long cardNo, Long cvvNo, LocalDate expireDate, GenStatusType statusType);
+    List<CrdCreditCard> findAllByCusCustomerIdAndStatusType(Long cusCustomerId, GenStatusType statusType);
+
+    Optional<CrdCreditCard> findByIdAndCusCustomerId(Long id, Long cusCustomerId);
+
+    CrdCreditCard findByCardNoAndCvvNoAndExpireDateAndCusCustomerIdAndStatusType(Long cardNo, Long cvvNo, LocalDate expireDate,
+                                                                              Long cusCustomerId, GenStatusType statusType);
 
     @Query(
             " select " +

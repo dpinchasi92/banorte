@@ -29,7 +29,7 @@ public class CrdCreditCardController {
     @Operation(
             tags = "Credit Card Controller",
             summary = "All credit cards",
-            description = "Gets all active credit cards."
+            description = "Gets all active credit cards of the current customer."
     )
     @GetMapping
     public ResponseEntity<RestResponse<List<CrdCreditCardDto>>> findAllCreditCards(){
