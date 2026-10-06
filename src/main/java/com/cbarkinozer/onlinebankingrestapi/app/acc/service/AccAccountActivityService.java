@@ -34,6 +34,8 @@ public class AccAccountActivityService {
         AccAccountActivityType activityType = accMoneyActivityDto.getActivityType();
 
         AccAccount accAccount = accAccountEntityService.getByIdWithControl(accountId);
+        accAccountValidationService.controlIsAccountOwnedByCurrentCustomer(accAccount);
+
         BigDecimal newBalance = accAccount.getCurrentBalance().subtract(amount);
 
         accAccountValidationService.controlIsAmountPositive(amount);
@@ -123,6 +125,9 @@ public class AccAccountActivityService {
 
         accAccountValidationService.controlIsAccountIdExist(accAccountId);
         accAccountValidationService.controlIsAmountPositive(amount);
+
+        AccAccount accAccount = accAccountEntityService.getByIdWithControl(accAccountId);
+        accAccountValidationService.controlIsAccountOwnedByCurrentCustomer(accAccount);
 
         AccMoneyActivityDto accMoneyActivityDto = AccMoneyActivityDto.builder()
                 .accountId(accAccountId)

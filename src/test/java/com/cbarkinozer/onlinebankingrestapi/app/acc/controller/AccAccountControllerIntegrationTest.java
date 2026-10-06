@@ -133,6 +133,8 @@ class AccAccountControllerIntegrationTest extends BaseTest {
     @Test
     void transferMoney() throws Exception {
 
+        authenticateAs(customer);
+
         AccAccount from = seedAccount(BigDecimal.valueOf(1000));
         AccAccount to = seedAccount(BigDecimal.valueOf(1000));
 
@@ -157,6 +159,8 @@ class AccAccountControllerIntegrationTest extends BaseTest {
     @Test
     void withdraw() throws Exception {
 
+        authenticateAs(customer);
+
         AccAccount account = seedAccount(BigDecimal.valueOf(1000));
 
         String content = objectMapper.writeValueAsString(createMoneyActivityRequest(account.getId()));
@@ -172,6 +176,8 @@ class AccAccountControllerIntegrationTest extends BaseTest {
     @Test
     void deposit() throws Exception {
 
+        authenticateAs(customer);
+
         AccAccount account = seedAccount(BigDecimal.valueOf(1000));
 
         String content = objectMapper.writeValueAsString(createMoneyActivityRequest(account.getId()));
@@ -182,6 +188,40 @@ class AccAccountControllerIntegrationTest extends BaseTest {
 
         assertTrue(isSuccess(result));
         assertEquals(0, BigDecimal.valueOf(1100).compareTo(accAccountEntityService.getByIdWithControl(account.getId()).getCurrentBalance()));
+    }
+
+    @Test
+    void shouldNotWithdraw_WhenAccount_BelongsToAnotherCustomer() throws Exception {
+
+        authenticateAs(customer);
+
+        CusCustomer victim = seedCustomer();
+        AccAccount victimAccount = seedAccount(victim, BigDecimal.valueOf(1000));
+
+        String content = objectMapper.writeValueAsString(createMoneyActivityRequest(victimAccount.getId()));
+
+        mockMvc.perform(
+                post(BASE_PATH+"/withdraw").content(content).contentType(MediaType.APPLICATION_JSON)
+        ).andExpect(status().isBadRequest());
+
+        assertEquals(0, BigDecimal.valueOf(1000).compareTo(accAccountEntityService.getByIdWithControl(victimAccount.getId()).getCurrentBalance()));
+    }
+
+    @Test
+    void shouldNotDeposit_WhenAccount_BelongsToAnotherCustomer() throws Exception {
+
+        authenticateAs(customer);
+
+        CusCustomer victim = seedCustomer();
+        AccAccount victimAccount = seedAccount(victim, BigDecimal.valueOf(1000));
+
+        String content = objectMapper.writeValueAsString(createMoneyActivityRequest(victimAccount.getId()));
+
+        mockMvc.perform(
+                post(BASE_PATH+"/deposit").content(content).contentType(MediaType.APPLICATION_JSON)
+        ).andExpect(status().isBadRequest());
+
+        assertEquals(0, BigDecimal.valueOf(1000).compareTo(accAccountEntityService.getByIdWithControl(victimAccount.getId()).getCurrentBalance()));
     }
 
     private AccMoneyActivityRequestDto createMoneyActivityRequest(Long accountId) {
@@ -201,8 +241,12 @@ class AccAccountControllerIntegrationTest extends BaseTest {
     }
 
     private AccAccount seedAccount(BigDecimal balance) {
+        return seedAccount(customer, balance);
+    }
+
+    private AccAccount seedAccount(CusCustomer owner, BigDecimal balance) {
         AccAccount accAccount = new AccAccount();
-        accAccount.setCustomerId(customer.getId());
+        accAccount.setCustomerId(owner.getId());
         accAccount.setIbanNo(StringUtil.getRandomNumberAsString(26));
         accAccount.setCurrentBalance(balance);
         accAccount.setCurrencyType(AccCurrencyType.TL);

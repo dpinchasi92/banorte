@@ -48,6 +48,15 @@ public class AccAccountValidationService {
         }
     }
 
+    public void controlIsAccountOwnedByCurrentCustomer(AccAccount accAccount) {
+
+        Long currentCustomerId = accAccountEntityService.getCurrentCustomerId();
+
+        if (currentCustomerId == null || !currentCustomerId.equals(accAccount.getCustomerId())){
+            throw new IllegalFieldException(AccErrorMessage.ACCOUNT_DOES_NOT_BELONG_TO_CUSTOMER);
+        }
+    }
+
     public void controlIsCustomerExist(Long currentCustomerId) {
         CusCustomer cusCustomer = cusCustomerEntityService.findCustomerById(currentCustomerId);
         if(cusCustomer == null){
