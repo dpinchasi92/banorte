@@ -12,6 +12,7 @@ import com.cbarkinozer.onlinebankingrestapi.app.gen.enums.GenErrorMessage;
 import com.cbarkinozer.onlinebankingrestapi.app.gen.enums.GenStatusType;
 import com.cbarkinozer.onlinebankingrestapi.app.gen.exceptions.IllegalFieldException;
 import com.cbarkinozer.onlinebankingrestapi.app.gen.exceptions.ItemNotFoundException;
+import com.cbarkinozer.onlinebankingrestapi.app.gen.util.ClabeUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -120,7 +121,10 @@ class AccAccountServiceTest {
         assertEquals(CUSTOMER_ID, result.getCustomerId());
         assertEquals(GenStatusType.ACTIVE, result.getStatusType());
         assertEquals(BigDecimal.valueOf(100), result.getCurrentBalance());
-        assertEquals(26, result.getIbanNo().length());
+        assertEquals(18, result.getClabe().length());
+        assertTrue(result.getClabe().startsWith("072"));
+        assertTrue(ClabeUtil.isValidClabe(result.getClabe()));
+        verify(accAccountValidationService).controlIsClabeValid(result.getClabe());
         verify(accAccountValidationService).controlIsCustomerExist(CUSTOMER_ID);
     }
 
@@ -199,7 +203,7 @@ class AccAccountServiceTest {
         AccAccount accAccount = new AccAccount();
         accAccount.setId(ACCOUNT_ID);
         accAccount.setCustomerId(CUSTOMER_ID);
-        accAccount.setIbanNo("12345678901234567890123456");
+        accAccount.setClabe("072180000118359711");
         accAccount.setCurrentBalance(BigDecimal.valueOf(100));
         accAccount.setCurrencyType(AccCurrencyType.TL);
         accAccount.setAccountType(AccAccountType.DEPOSIT);

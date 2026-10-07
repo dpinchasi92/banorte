@@ -21,9 +21,9 @@ public interface AccAccountDao extends JpaRepository<AccAccount,Long> {
             "SELECT " +
                     "account "+
                     "FROM AccAccount account "+
-                    "WHERE account.ibanNo = :ibanNo "+
+                    "WHERE account.clabe = :clabe "+
                     "AND account.id <> :id "
     )
-    Optional<AccAccount> findByIbanNo(@Param("id") Long id, @Param("ibanNo") String ibanNo);
+    Optional<AccAccount> findByClabe(@Param("id") Long id, @Param("clabe") String clabe);
 
 }

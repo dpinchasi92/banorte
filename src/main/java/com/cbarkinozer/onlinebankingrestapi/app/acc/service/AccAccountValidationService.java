@@ -12,6 +12,7 @@ import com.cbarkinozer.onlinebankingrestapi.app.cus.service.entityservice.CusCus
 import com.cbarkinozer.onlinebankingrestapi.app.gen.enums.GenErrorMessage;
 import com.cbarkinozer.onlinebankingrestapi.app.gen.exceptions.GenBusinessException;
 import com.cbarkinozer.onlinebankingrestapi.app.gen.exceptions.IllegalFieldException;
+import com.cbarkinozer.onlinebankingrestapi.app.gen.util.ClabeUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,18 +28,24 @@ public class AccAccountValidationService {
     private final AccAccountEntityService accAccountEntityService;
     private final CusCustomerEntityService cusCustomerEntityService;
 
-    public void controlIsIbanNoUnique(AccAccount accAccount) {
+    public void controlIsClabeUnique(AccAccount accAccount) {
 
         Long id = accAccount.getId();
-        String ibanNo = accAccount.getIbanNo();
+        String clabe = accAccount.getClabe();
 
         Optional<AccAccount> accountOptional =
-                accAccountEntityService.findAccountByIbanNo(id,ibanNo);
+                accAccountEntityService.findAccountByClabe(id,clabe);
 
         if(accountOptional.isPresent()){
-            throw new IllegalFieldException(AccErrorMessage.IBAN_NO_IS_NOT_UNIQUE);
+            throw new IllegalFieldException(AccErrorMessage.CLABE_IS_NOT_UNIQUE);
         }
 
+    }
+
+    public void controlIsClabeValid(String clabe) {
+        if(!ClabeUtil.isValidClabe(clabe)){
+            throw new IllegalFieldException(AccErrorMessage.CLABE_IS_NOT_VALID);
+        }
     }
 
     public void controlIsAccountIdExist(Long accountId) {
@@ -58,7 +65,7 @@ public class AccAccountValidationService {
     public void controlAreFieldsNotNull(AccAccount accAccount) {
         boolean hasNullField =
                         accAccount.getCustomerId() == null ||
-                        accAccount.getIbanNo().isBlank() ||
+                        accAccount.getClabe() == null || accAccount.getClabe().isBlank() ||
                         accAccount.getCurrentBalance() == null ||
                         accAccount.getCurrencyType() == null ||
                         accAccount.getAccountType() == null ||

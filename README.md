@@ -83,7 +83,7 @@ it can be implemented dynamicaly by pulling data from another API.
 
 Interest rate can be zero because some countries (there are 11 countries with sharia laws) prefer it that way.  
 
-For accounts, iban no is generated as random numbers(simulated), although stored as string. This generation rules can be changed easily.
+Accounts are identified by an 18-digit Mexican CLABE: Banorte bank code `072` + 3-digit plaza code + 11-digit account number + 1 check digit (weights 3, 7, 1). Plaza and account digits are generated randomly (simulated); see `ClabeUtil`.
 Cvv no is created random but should be created using: primary account number, four-digit expiration date, a pair of DES (Data Encryption Standard) keys and a three-digit service code.  
 Credit card no is unique and created random but should be crated according to the Luhn algorithm.  
 The probability of recurrence of the credit card no is not checked because very low(1e+16).  

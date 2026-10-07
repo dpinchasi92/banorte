@@ -14,6 +14,7 @@ import com.cbarkinozer.onlinebankingrestapi.app.cus.entity.CusCustomer;
 import com.cbarkinozer.onlinebankingrestapi.app.cus.service.entityservice.CusCustomerEntityService;
 import com.cbarkinozer.onlinebankingrestapi.app.gen.BaseTest;
 import com.cbarkinozer.onlinebankingrestapi.app.gen.enums.GenStatusType;
+import com.cbarkinozer.onlinebankingrestapi.app.gen.util.ClabeUtil;
 import com.cbarkinozer.onlinebankingrestapi.app.gen.util.StringUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -203,7 +204,7 @@ class AccAccountControllerIntegrationTest extends BaseTest {
     private AccAccount seedAccount(BigDecimal balance) {
         AccAccount accAccount = new AccAccount();
         accAccount.setCustomerId(customer.getId());
-        accAccount.setIbanNo(StringUtil.getRandomNumberAsString(26));
+        accAccount.setClabe(ClabeUtil.generateClabe());
         accAccount.setCurrentBalance(balance);
         accAccount.setCurrencyType(AccCurrencyType.TL);
         accAccount.setAccountType(AccAccountType.DEPOSIT);
