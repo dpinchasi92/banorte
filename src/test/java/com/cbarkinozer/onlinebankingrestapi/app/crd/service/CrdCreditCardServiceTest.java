@@ -6,7 +6,10 @@ import com.cbarkinozer.onlinebankingrestapi.app.crd.entity.CrdCreditCardActivity
 import com.cbarkinozer.onlinebankingrestapi.app.crd.enums.CrdCreditCardActivityType;
 import com.cbarkinozer.onlinebankingrestapi.app.crd.service.entityservice.CrdCreditCardActivityEntityService;
 import com.cbarkinozer.onlinebankingrestapi.app.crd.service.entityservice.CrdCreditCardEntityService;
+import com.cbarkinozer.onlinebankingrestapi.app.crd.enums.CrdErrorMessage;
+import com.cbarkinozer.onlinebankingrestapi.app.gen.enums.GenErrorMessage;
 import com.cbarkinozer.onlinebankingrestapi.app.gen.enums.GenStatusType;
+import com.cbarkinozer.onlinebankingrestapi.app.gen.exceptions.ItemNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -47,7 +50,7 @@ class CrdCreditCardServiceTest {
         List<CrdCreditCard> crdCreditCardList = new ArrayList<>();
         crdCreditCardList.add(createCreditCard());
 
-        when(crdCreditCardEntityService.findAllActiveCreditCardList()).thenReturn(crdCreditCardList);
+        when(crdCreditCardEntityService.findAllActiveCreditCardListOfCurrentCustomer()).thenReturn(crdCreditCardList);
 
         List<CrdCreditCardDto> result = crdCreditCardService.findAllCreditCards();
 
@@ -58,7 +61,7 @@ class CrdCreditCardServiceTest {
     @Test
     void shouldFindCreditCardById() {
 
-        when(crdCreditCardEntityService.getByIdWithControl(CARD_ID)).thenReturn(createCreditCard());
+        when(crdCreditCardEntityService.getByIdOfCurrentCustomerWithControl(CARD_ID)).thenReturn(createCreditCard());
 
         CrdCreditCardDto crdCreditCardDto = crdCreditCardService.findCreditCardById(CARD_ID);
 
@@ -78,7 +81,7 @@ class CrdCreditCardServiceTest {
 
         LocalDateTime termEndDate = crdCreditCard.getCutoffDate().atStartOfDay();
 
-        when(crdCreditCardEntityService.getByIdWithControl(CARD_ID)).thenReturn(crdCreditCard);
+        when(crdCreditCardEntityService.getByIdOfCurrentCustomerWithControl(CARD_ID)).thenReturn(crdCreditCard);
         when(crdCreditCardEntityService.getCreditCardDetails(CARD_ID)).thenReturn(detailsDto);
         when(crdCreditCardActivityEntityService.findAllByCrdCreditCardIdAndTransactionDateBetween(
                 CARD_ID, termEndDate.minusMonths(1), termEndDate)).thenReturn(activityList);
@@ -119,7 +122,7 @@ class CrdCreditCardServiceTest {
 
         CrdCreditCard crdCreditCard = createCreditCard();
 
-        when(crdCreditCardEntityService.getByIdWithControl(CARD_ID)).thenReturn(crdCreditCard);
+        when(crdCreditCardEntityService.getByIdOfCurrentCustomerWithControl(CARD_ID)).thenReturn(crdCreditCard);
 
         crdCreditCardService.cancelCreditCard(CARD_ID);
 
@@ -136,6 +139,8 @@ class CrdCreditCardServiceTest {
 
         LocalDate startDate = LocalDate.now();
         LocalDate endDate = LocalDate.now().plusMonths(24);
+
+        when(crdCreditCardEntityService.getByIdOfCurrentCustomerWithControl(CARD_ID)).thenReturn(createCreditCard());
 
         when(crdCreditCardActivityEntityService.findCreditCardActivityBetweenDates(
                 CARD_ID, startDate.atStartOfDay(), endDate.atStartOfDay())
@@ -160,7 +165,7 @@ class CrdCreditCardServiceTest {
         spendDto.setAmount(BigDecimal.valueOf(200));
         spendDto.setDescription("market");
 
-        when(crdCreditCardEntityService.findByCardNoAndCvvNoAndExpireDate(
+        when(crdCreditCardEntityService.findByCardNoAndCvvNoAndExpireDateOfCurrentCustomer(
                 crdCreditCard.getCardNo(), crdCreditCard.getCvvNo(), crdCreditCard.getExpireDate()))
                 .thenReturn(crdCreditCard);
         when(crdCreditCardEntityService.save(crdCreditCard)).thenReturn(crdCreditCard);
@@ -186,8 +191,8 @@ class CrdCreditCardServiceTest {
 
         CrdCreditCardActivity oldActivity = createActivity(10L, BigDecimal.valueOf(200), CrdCreditCardActivityType.SPEND);
 
-        when(crdCreditCardActivityEntityService.getByIdWithControl(10L)).thenReturn(oldActivity);
-        when(crdCreditCardEntityService.getByIdWithControl(CARD_ID)).thenReturn(crdCreditCard);
+        when(crdCreditCardActivityEntityService.getByIdOfCurrentCustomerWithControl(10L)).thenReturn(oldActivity);
+        when(crdCreditCardEntityService.getByIdOfCurrentCustomerWithControl(CARD_ID)).thenReturn(crdCreditCard);
         when(crdCreditCardEntityService.save(crdCreditCard)).thenReturn(crdCreditCard);
         when(crdCreditCardActivityEntityService.save(any(CrdCreditCardActivity.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -211,7 +216,7 @@ class CrdCreditCardServiceTest {
         paymentDto.setCrdCreditCardId(CARD_ID);
         paymentDto.setAmount(BigDecimal.valueOf(200));
 
-        when(crdCreditCardEntityService.getByIdWithControl(CARD_ID)).thenReturn(crdCreditCard);
+        when(crdCreditCardEntityService.getByIdOfCurrentCustomerWithControl(CARD_ID)).thenReturn(crdCreditCard);
         when(crdCreditCardEntityService.save(crdCreditCard)).thenReturn(crdCreditCard);
         when(crdCreditCardActivityEntityService.save(any(CrdCreditCardActivity.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -222,6 +227,49 @@ class CrdCreditCardServiceTest {
         assertEquals(CrdCreditCardActivityType.PAYMENT, result.getCardActivityType());
         assertEquals(BigDecimal.valueOf(1000), crdCreditCard.getAvailableCardLimit());
         verify(crdCreditCardValidationService).controlAreFieldsNull(CARD_ID, BigDecimal.valueOf(200));
+    }
+
+    @Test
+    void shouldNotFindCreditCardOfAnotherCustomer() {
+
+        when(crdCreditCardEntityService.getByIdOfCurrentCustomerWithControl(CARD_ID))
+                .thenThrow(new ItemNotFoundException(CrdErrorMessage.CREDIT_CARD_NOT_FOUND));
+
+        assertThrows(ItemNotFoundException.class, () -> crdCreditCardService.findCreditCardById(CARD_ID));
+        assertThrows(ItemNotFoundException.class, () -> crdCreditCardService.getCardDetails(CARD_ID));
+        assertThrows(ItemNotFoundException.class, () -> crdCreditCardService.cancelCreditCard(CARD_ID));
+        assertThrows(ItemNotFoundException.class, () -> crdCreditCardService.findCreditCardActivityBetweenDates(
+                CARD_ID, LocalDate.now(), LocalDate.now().plusDays(1)));
+
+        verify(crdCreditCardEntityService, never()).save(any(CrdCreditCard.class));
+    }
+
+    @Test
+    void shouldNotReceivePaymentForCreditCardOfAnotherCustomer() {
+
+        CrdCreditCardPaymentDto paymentDto = new CrdCreditCardPaymentDto();
+        paymentDto.setCrdCreditCardId(CARD_ID);
+        paymentDto.setAmount(BigDecimal.valueOf(200));
+
+        when(crdCreditCardEntityService.getByIdOfCurrentCustomerWithControl(CARD_ID))
+                .thenThrow(new ItemNotFoundException(CrdErrorMessage.CREDIT_CARD_NOT_FOUND));
+
+        assertThrows(ItemNotFoundException.class, () -> crdCreditCardService.receivePayment(paymentDto));
+
+        verify(crdCreditCardEntityService, never()).save(any(CrdCreditCard.class));
+        verify(crdCreditCardActivityEntityService, never()).save(any(CrdCreditCardActivity.class));
+    }
+
+    @Test
+    void shouldNotRefundActivityOfAnotherCustomer() {
+
+        when(crdCreditCardActivityEntityService.getByIdOfCurrentCustomerWithControl(10L))
+                .thenThrow(new ItemNotFoundException(GenErrorMessage.ITEM_NOT_FOUND));
+
+        assertThrows(ItemNotFoundException.class, () -> crdCreditCardService.refundMoney(10L));
+
+        verify(crdCreditCardEntityService, never()).save(any(CrdCreditCard.class));
+        verify(crdCreditCardActivityEntityService, never()).save(any(CrdCreditCardActivity.class));
     }
 
     private CrdCreditCard createCreditCard() {

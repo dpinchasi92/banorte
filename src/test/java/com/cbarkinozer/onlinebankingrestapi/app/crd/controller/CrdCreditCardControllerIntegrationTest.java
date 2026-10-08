@@ -64,6 +64,7 @@ class CrdCreditCardControllerIntegrationTest extends BaseTest {
         this.objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
         customer = seedCustomer();
+        authenticateAs(customer);
     }
 
     @Test
@@ -226,6 +227,102 @@ class CrdCreditCardControllerIntegrationTest extends BaseTest {
 
         assertTrue(isSuccess(result));
         assertEquals(GenStatusType.PASSIVE, crdCreditCardEntityService.getByIdWithControl(card.getId()).getStatusType());
+    }
+
+    @Test
+    void findAllCreditCardsShouldNotReturnCardsOfOtherCustomers() throws Exception {
+
+        CrdCreditCard ownCard = seedCreditCard();
+        CrdCreditCard otherCard = seedCreditCardOfAnotherCustomer();
+
+        MvcResult result = mockMvc.perform(
+                get(BASE_PATH).contentType(MediaType.APPLICATION_JSON)
+        ).andExpect(status().isOk()).andReturn();
+
+        String body = result.getResponse().getContentAsString();
+        assertTrue(body.contains("\"id\":" + ownCard.getId() + ","));
+        assertFalse(body.contains("\"id\":" + otherCard.getId() + ","));
+        assertFalse(body.contains(otherCard.getCardNo().toString()));
+    }
+
+    @Test
+    void readEndpointsShouldNotExposeCardOfAnotherCustomer() throws Exception {
+
+        CrdCreditCard otherCard = seedCreditCardOfAnotherCustomer();
+        seedActivity(otherCard, BigDecimal.valueOf(150));
+
+        mockMvc.perform(get(BASE_PATH + "/" + otherCard.getId()).contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(get(BASE_PATH + "/" + otherCard.getId() + "/cardDetails").contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(get(BASE_PATH + "/" + otherCard.getId() + "/activities")
+                        .param("startDate", LocalDate.now().minusDays(1).toString())
+                        .param("endDate", LocalDate.now().plusDays(1).toString())
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(get(BASE_PATH + "/get-card-activity-analysis/" + otherCard.getId()).contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isNotFound());
+
+        MvcResult result = mockMvc.perform(get(BASE_PATH + "/find-activity-by-amount-interval")
+                        .param("min", "100").param("max", "200").contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk()).andReturn();
+
+        assertFalse(result.getResponse().getContentAsString().contains("\"crdCreditCardId\":" + otherCard.getId() + ","));
+    }
+
+    @Test
+    void spendMoneyShouldNotChargeCardOfAnotherCustomer() throws Exception {
+
+        CrdCreditCard otherCard = seedCreditCardOfAnotherCustomer();
+
+        CrdCreditCardSpendDto crdCreditCardSpendDto = new CrdCreditCardSpendDto();
+        crdCreditCardSpendDto.setCardNo(otherCard.getCardNo());
+        crdCreditCardSpendDto.setCvvNo(otherCard.getCvvNo());
+        crdCreditCardSpendDto.setExpireDate(otherCard.getExpireDate());
+        crdCreditCardSpendDto.setAmount(BigDecimal.valueOf(100));
+        crdCreditCardSpendDto.setDescription("Not my card");
+
+        mockMvc.perform(post(BASE_PATH + "/spend-money")
+                        .content(objectMapper.writeValueAsString(crdCreditCardSpendDto)).contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isNotFound());
+
+        assertEquals(0, BigDecimal.ZERO.compareTo(crdCreditCardEntityService.getByIdWithControl(otherCard.getId()).getCurrentDebt()));
+    }
+
+    @Test
+    void writeEndpointsShouldNotModifyCardOfAnotherCustomer() throws Exception {
+
+        CrdCreditCard otherCard = seedCreditCardOfAnotherCustomer();
+        CrdCreditCardActivity otherActivity = seedActivity(otherCard, BigDecimal.valueOf(150));
+
+        mockMvc.perform(post(BASE_PATH + "/refund/" + otherActivity.getId()).contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isNotFound());
+
+        CrdCreditCardPaymentDto crdCreditCardPaymentDto = new CrdCreditCardPaymentDto();
+        crdCreditCardPaymentDto.setCrdCreditCardId(otherCard.getId());
+        crdCreditCardPaymentDto.setAmount(BigDecimal.valueOf(100));
+
+        mockMvc.perform(post(BASE_PATH + "/receive-payment")
+                        .content(objectMapper.writeValueAsString(crdCreditCardPaymentDto)).contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(patch(BASE_PATH + "/" + otherCard.getId()).contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isNotFound());
+
+        CrdCreditCard reloaded = crdCreditCardEntityService.getByIdWithControl(otherCard.getId());
+        assertEquals(GenStatusType.ACTIVE, reloaded.getStatusType());
+        assertEquals(0, BigDecimal.valueOf(1000).compareTo(reloaded.getAvailableCardLimit()));
+    }
+
+    private CrdCreditCard seedCreditCardOfAnotherCustomer() {
+        CusCustomer currentCustomer = customer;
+        customer = seedCustomer();
+        CrdCreditCard crdCreditCard = seedCreditCard();
+        customer = currentCustomer;
+        return crdCreditCard;
     }
 
     private CusCustomer seedCustomer() {

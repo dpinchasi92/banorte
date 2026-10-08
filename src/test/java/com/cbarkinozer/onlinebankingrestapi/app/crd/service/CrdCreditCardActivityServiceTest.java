@@ -40,7 +40,7 @@ class CrdCreditCardActivityServiceTest {
         List<CrdCreditCardActivity> crdCreditCardActivityList = new ArrayList<>();
         crdCreditCardActivityList.add(createDummyCrdCreditCardActivity());
 
-        when(crdCreditCardActivityEntityService.findCreditCardActivityByAmountInterval(min, max))
+        when(crdCreditCardActivityEntityService.findCreditCardActivityByAmountIntervalOfCurrentCustomer(min, max))
                 .thenReturn(crdCreditCardActivityList);
 
         List<CrdCreditCardActivityDto> result = crdCreditCardActivityService.findCreditCardActivityByAmountInterval(min, max);
@@ -64,7 +64,7 @@ class CrdCreditCardActivityServiceTest {
         List<CrdCreditCardActivityAnalysisDto> result = crdCreditCardActivityService.getCardActivityAnalysis(1L);
 
         assertSame(analysisList, result);
-        verify(crdCreditCardActivityValidationService).controlIsCreditCardExist(1L);
+        verify(crdCreditCardActivityValidationService).controlIsCreditCardOfCurrentCustomer(1L);
     }
 
     private CrdCreditCardActivity createDummyCrdCreditCardActivity() {
