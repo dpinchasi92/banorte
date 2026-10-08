@@ -24,7 +24,7 @@ public class CusCustomerService {
 
     public List<CusCustomerDto> findAllCustomers(){
 
-        List<CusCustomer> cusCustomerList = cusCustomerEntityService.findAllCustomers();
+        List<CusCustomer> cusCustomerList = List.of(cusCustomerEntityService.getCurrentCustomerWithControl());
 
         List<CusCustomerDto> cusCustomerDtoList = CusCustomerMapper.INSTANCE.convertToCusCustomerDtoList(cusCustomerList);
 
@@ -33,7 +33,7 @@ public class CusCustomerService {
 
     public CusCustomerDto findCustomerById(Long id) {
 
-        CusCustomer cusCustomer = cusCustomerEntityService.getByIdWithControl(id);
+        CusCustomer cusCustomer = cusCustomerEntityService.getByIdOfCurrentCustomerWithControl(id);
 
         CusCustomerDto cusCustomerDto = CusCustomerMapper.INSTANCE.convertToCusCustomerDto(cusCustomer);
 
@@ -59,15 +59,15 @@ public class CusCustomerService {
 
     public CusCustomerDto updateCustomer(CusCustomerUpdateDto cusCustomerUpdateDto) {
 
-        Long id = cusCustomerUpdateDto.getId();
-        cusCustomerValidationService.controlIsCustomerExist(id);
+        CusCustomer currentCustomer = cusCustomerEntityService.getCurrentCustomerWithControl();
 
         CusCustomer cusCustomer = CusCustomerMapper.INSTANCE.convertToCusCustomer(cusCustomerUpdateDto);
+        cusCustomer.setId(currentCustomer.getId());
 
         cusCustomerValidationService.controlAreFieldsNonNull(cusCustomer);
         cusCustomerValidationService.controlIsIdentityNoUnique(cusCustomer);
 
-        String password = cusCustomerEntityService.findCustomerById(id).getPassword();
+        String password = currentCustomer.getPassword();
         boolean passwordIsSame = cusCustomer.getPassword().equals(password);
 
         if(!passwordIsSame){
@@ -84,7 +84,7 @@ public class CusCustomerService {
 
     public void deleteCustomer(Long id) {
 
-        CusCustomer cusCustomer = cusCustomerEntityService.getByIdWithControl(id);
+        CusCustomer cusCustomer = cusCustomerEntityService.getByIdOfCurrentCustomerWithControl(id);
 
         cusCustomerEntityService.delete(cusCustomer);
     }

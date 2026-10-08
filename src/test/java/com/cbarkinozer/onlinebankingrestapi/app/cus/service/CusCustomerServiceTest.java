@@ -28,6 +28,7 @@ import static org.mockito.Mockito.*;
 class CusCustomerServiceTest {
 
     private static final Long CUSTOMER_ID = 1L;
+    private static final Long OTHER_CUSTOMER_ID = 2L;
 
     @Mock
     private CusCustomerEntityService cusCustomerEntityService;
@@ -50,7 +51,7 @@ class CusCustomerServiceTest {
         List<CusCustomerDto> expectedResult = new ArrayList<>();
         expectedResult.add(createDummyCusCustomerDto());
 
-        when(cusCustomerEntityService.findAllCustomers()).thenReturn(cusCustomerList);
+        when(cusCustomerEntityService.getCurrentCustomerWithControl()).thenReturn(cusCustomerList.get(0));
 
         List<CusCustomerDto> result = cusCustomerService.findAllCustomers();
 
@@ -60,7 +61,7 @@ class CusCustomerServiceTest {
     @Test
     void shouldFindCustomerById() {
 
-        when(cusCustomerEntityService.getByIdWithControl(CUSTOMER_ID)).thenReturn(createDummyCusCustomer());
+        when(cusCustomerEntityService.getByIdOfCurrentCustomerWithControl(CUSTOMER_ID)).thenReturn(createDummyCusCustomer());
 
         CusCustomerDto result = cusCustomerService.findCustomerById(CUSTOMER_ID);
 
@@ -72,7 +73,7 @@ class CusCustomerServiceTest {
 
         ItemNotFoundException expected = new ItemNotFoundException(GenErrorMessage.ITEM_NOT_FOUND);
 
-        when(cusCustomerEntityService.getByIdWithControl(CUSTOMER_ID)).thenThrow(expected);
+        when(cusCustomerEntityService.getByIdOfCurrentCustomerWithControl(CUSTOMER_ID)).thenThrow(expected);
 
         ItemNotFoundException result = assertThrows(ItemNotFoundException.class,
                 () -> cusCustomerService.findCustomerById(CUSTOMER_ID));
@@ -132,14 +133,45 @@ class CusCustomerServiceTest {
         CusCustomer existing = createDummyCusCustomer();
         existing.setPassword(cusCustomerUpdateDto.getPassword());
 
-        when(cusCustomerEntityService.findCustomerById(CUSTOMER_ID)).thenReturn(existing);
+        when(cusCustomerEntityService.getCurrentCustomerWithControl()).thenReturn(existing);
         when(cusCustomerEntityService.saveCustomer(any(CusCustomer.class))).thenReturn(createDummyCusCustomer());
 
         CusCustomerDto result = cusCustomerService.updateCustomer(cusCustomerUpdateDto);
 
         assertEquals(createDummyCusCustomerDto(), result);
-        verify(cusCustomerValidationService).controlIsCustomerExist(CUSTOMER_ID);
         verifyNoInteractions(passwordEncoder);
+    }
+
+    @Test
+    void shouldUpdateOnlyCurrentCustomer_WhenBodyId_BelongsToAnotherCustomer() {
+
+        CusCustomerUpdateDto cusCustomerUpdateDto = createDummyCusCustomerUpdateDto();
+        cusCustomerUpdateDto.setId(OTHER_CUSTOMER_ID);
+
+        when(cusCustomerEntityService.getCurrentCustomerWithControl()).thenReturn(createDummyCusCustomer());
+        when(passwordEncoder.encode("test1234")).thenReturn("encoded");
+        when(cusCustomerEntityService.saveCustomer(any(CusCustomer.class))).thenReturn(createDummyCusCustomer());
+
+        cusCustomerService.updateCustomer(cusCustomerUpdateDto);
+
+        ArgumentCaptor<CusCustomer> captor = ArgumentCaptor.forClass(CusCustomer.class);
+        verify(cusCustomerEntityService).saveCustomer(captor.capture());
+        assertEquals(CUSTOMER_ID, captor.getValue().getId());
+        verify(cusCustomerEntityService, never()).findCustomerById(OTHER_CUSTOMER_ID);
+    }
+
+    @Test
+    void shouldNotUpdateCustomer_WhenNotAuthenticated() {
+
+        ItemNotFoundException expected = new ItemNotFoundException(CusErrorMessage.CUSTOMER_NOT_FOUND);
+
+        when(cusCustomerEntityService.getCurrentCustomerWithControl()).thenThrow(expected);
+
+        ItemNotFoundException result = assertThrows(ItemNotFoundException.class,
+                () -> cusCustomerService.updateCustomer(createDummyCusCustomerUpdateDto()));
+
+        assertSame(expected, result);
+        verify(cusCustomerEntityService, never()).saveCustomer(any());
     }
 
     @Test
@@ -147,6 +179,7 @@ class CusCustomerServiceTest {
 
         IllegalFieldException expected = new IllegalFieldException(CusErrorMessage.IDENTITY_NO_MUST_BE_UNIQUE);
 
+        when(cusCustomerEntityService.getCurrentCustomerWithControl()).thenReturn(createDummyCusCustomer());
         doThrow(expected).when(cusCustomerValidationService).controlIsIdentityNoUnique(any(CusCustomer.class));
 
         IllegalFieldException result = assertThrows(IllegalFieldException.class,
@@ -161,6 +194,7 @@ class CusCustomerServiceTest {
 
         IllegalFieldException expected = new IllegalFieldException(CusErrorMessage.FIELD_CANNOT_BE_NULL);
 
+        when(cusCustomerEntityService.getCurrentCustomerWithControl()).thenReturn(createDummyCusCustomer());
         doThrow(expected).when(cusCustomerValidationService).controlAreFieldsNonNull(any(CusCustomer.class));
 
         IllegalFieldException result = assertThrows(IllegalFieldException.class,
@@ -175,7 +209,7 @@ class CusCustomerServiceTest {
 
         CusCustomer cusCustomer = createDummyCusCustomer();
 
-        when(cusCustomerEntityService.getByIdWithControl(CUSTOMER_ID)).thenReturn(cusCustomer);
+        when(cusCustomerEntityService.getByIdOfCurrentCustomerWithControl(CUSTOMER_ID)).thenReturn(cusCustomer);
 
         cusCustomerService.deleteCustomer(CUSTOMER_ID);
 
@@ -187,7 +221,7 @@ class CusCustomerServiceTest {
 
         ItemNotFoundException expected = new ItemNotFoundException(GenErrorMessage.ITEM_NOT_FOUND);
 
-        when(cusCustomerEntityService.getByIdWithControl(CUSTOMER_ID)).thenThrow(expected);
+        when(cusCustomerEntityService.getByIdOfCurrentCustomerWithControl(CUSTOMER_ID)).thenThrow(expected);
 
         ItemNotFoundException result = assertThrows(ItemNotFoundException.class,
                 () -> cusCustomerService.deleteCustomer(CUSTOMER_ID));

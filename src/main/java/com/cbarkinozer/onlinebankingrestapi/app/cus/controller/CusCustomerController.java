@@ -27,8 +27,8 @@ public class CusCustomerController {
 
     @Operation(
             tags = "Customer Controller",
-            summary = "All Customers",
-            description = "Gets all customers."
+            summary = "Current Customer",
+            description = "Gets the authenticated customer."
     )
     @GetMapping
     public ResponseEntity<RestResponse<List<CusCustomerDto>>> findAllCustomers(){
@@ -41,7 +41,7 @@ public class CusCustomerController {
     @Operation(
             tags = "Customer Controller",
             summary = "Get a Customer",
-            description = "Gets a customer by id."
+            description = "Gets the authenticated customer by id."
     )
     @GetMapping("/{id}")
     public ResponseEntity<RestResponse<CusCustomerDto>> findCustomerById(@PathVariable Long id){
@@ -106,7 +106,7 @@ public class CusCustomerController {
     @Operation(
             tags="Customer Controller",
             summary = "Update a customer",
-            description = "Updates customers all fields."
+            description = "Updates all fields of the authenticated customer. The id in the request body is ignored."
     )
     @PutMapping("/update-customer")
     public ResponseEntity<RestResponse<CusCustomerDto>> updateCustomer(@RequestBody CusCustomerUpdateDto cusCustomerUpdateDto){
@@ -119,7 +119,7 @@ public class CusCustomerController {
     @Operation(
             tags="Customer Controller",
             summary = "Delete a customer",
-            description = "Deletes a customer by id."
+            description = "Deletes the authenticated customer by id."
     )
     @DeleteMapping("/{id}")
     public ResponseEntity<RestResponse<?>> deleteCustomer(@PathVariable Long id){

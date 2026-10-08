@@ -21,6 +21,9 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.WebApplicationContext;
 
+import java.util.List;
+import java.util.Map;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -48,19 +51,25 @@ public class CusCustomerControllerIntegrationTest extends BaseTest {
     @Test
     void shouldFindAllCustomers() throws Exception {
 
+        CusCustomer customer = seedCustomer();
         seedCustomer();
+        authenticateAs(customer);
 
         MvcResult result = mockMvc.perform(
                 get(BASE_PATH).contentType(MediaType.APPLICATION_JSON)
         ).andExpect(status().isOk()).andReturn();
 
         assertTrue(isSuccess(result));
+        List<?> customers = (List<?>) getRestResponse(result).getData();
+        assertEquals(1, customers.size());
+        assertEquals(customer.getId().intValue(), ((Map<?, ?>) customers.get(0)).get("id"));
     }
 
     @Test
     void shouldFindCustomerById() throws Exception {
 
         CusCustomer customer = seedCustomer();
+        authenticateAs(customer);
 
         MvcResult result = mockMvc.perform(
                 get(BASE_PATH + "/" + customer.getId()).contentType(MediaType.APPLICATION_JSON)
@@ -124,6 +133,7 @@ public class CusCustomerControllerIntegrationTest extends BaseTest {
     void shouldUpdateCustomer() throws Exception {
 
         CusCustomer customer = seedCustomer();
+        authenticateAs(customer);
 
         CusCustomerUpdateDto cusCustomerUpdateDto = new CusCustomerUpdateDto();
         cusCustomerUpdateDto.setId(customer.getId());
@@ -146,6 +156,7 @@ public class CusCustomerControllerIntegrationTest extends BaseTest {
     void shouldNotUpdateCustomer_WhenFields_AreNull() throws Exception {
 
         CusCustomer customer = seedCustomer();
+        authenticateAs(customer);
 
         CusCustomerUpdateDto cusCustomerUpdateDto = new CusCustomerUpdateDto();
         cusCustomerUpdateDto.setId(customer.getId());
@@ -168,6 +179,7 @@ public class CusCustomerControllerIntegrationTest extends BaseTest {
 
         CusCustomer existing = seedCustomer();
         CusCustomer customer = seedCustomer();
+        authenticateAs(customer);
 
         CusCustomerUpdateDto cusCustomerUpdateDto = new CusCustomerUpdateDto();
         cusCustomerUpdateDto.setId(customer.getId());
@@ -189,6 +201,7 @@ public class CusCustomerControllerIntegrationTest extends BaseTest {
     void shouldDeleteCustomer() throws Exception {
 
         CusCustomer customer = seedCustomer();
+        authenticateAs(customer);
 
         MvcResult result = mockMvc.perform(
                 delete(BASE_PATH + "/" + customer.getId()).contentType(MediaType.APPLICATION_JSON)
@@ -208,6 +221,71 @@ public class CusCustomerControllerIntegrationTest extends BaseTest {
         ).andExpect(status().isNotFound()).andReturn();
 
         assertFalse(isSuccess(result));
+    }
+
+    @Test
+    void shouldNotFindCustomerById_WhenCustomer_BelongsToAnotherCustomer() throws Exception {
+
+        CusCustomer victim = seedCustomer();
+        authenticateAs(seedCustomer());
+
+        MvcResult result = mockMvc.perform(
+                get(BASE_PATH + "/" + victim.getId()).contentType(MediaType.APPLICATION_JSON)
+        ).andExpect(status().isNotFound()).andReturn();
+
+        assertFalse(isSuccess(result));
+    }
+
+    @Test
+    void shouldNotFindAllCustomers_WhenNotAuthenticated() throws Exception {
+
+        seedCustomer();
+
+        MvcResult result = mockMvc.perform(
+                get(BASE_PATH).contentType(MediaType.APPLICATION_JSON)
+        ).andExpect(status().isNotFound()).andReturn();
+
+        assertFalse(isSuccess(result));
+    }
+
+    @Test
+    void shouldNotUpdateAnotherCustomer_WhenBodyId_BelongsToVictim() throws Exception {
+
+        CusCustomer victim = seedCustomer();
+        CusCustomer attacker = seedCustomer();
+        authenticateAs(attacker);
+
+        CusCustomerUpdateDto cusCustomerUpdateDto = new CusCustomerUpdateDto();
+        cusCustomerUpdateDto.setId(victim.getId());
+        cusCustomerUpdateDto.setName("Hacked");
+        cusCustomerUpdateDto.setSurname("Hacked");
+        cusCustomerUpdateDto.setIdentityNo(attacker.getIdentityNo());
+        cusCustomerUpdateDto.setPassword("attackerPassword");
+
+        String content = objectMapper.writeValueAsString(cusCustomerUpdateDto);
+
+        mockMvc.perform(
+                put(BASE_PATH + "/update-customer").content(content).contentType(MediaType.APPLICATION_JSON)
+        ).andExpect(status().isOk());
+
+        CusCustomer victimAfter = cusCustomerEntityService.getByIdWithControl(victim.getId());
+        assertEquals("Test", victimAfter.getName());
+        assertEquals("test1234", victimAfter.getPassword());
+        assertEquals("Hacked", cusCustomerEntityService.getByIdWithControl(attacker.getId()).getName());
+    }
+
+    @Test
+    void shouldNotDeleteCustomer_WhenCustomer_BelongsToAnotherCustomer() throws Exception {
+
+        CusCustomer victim = seedCustomer();
+        authenticateAs(seedCustomer());
+
+        MvcResult result = mockMvc.perform(
+                delete(BASE_PATH + "/" + victim.getId()).contentType(MediaType.APPLICATION_JSON)
+        ).andExpect(status().isNotFound()).andReturn();
+
+        assertFalse(isSuccess(result));
+        assertTrue(cusCustomerEntityService.existsById(victim.getId()));
     }
 
     private CusCustomer seedCustomer() {
