@@ -34,8 +34,5 @@ Paths are relative to `src/main/java/com/cbarkinozer/onlinebankingrestapi/`.
 
 ## 4. Tax: IVA at 16%
 
-- The tax is **IVA at 16%**. Define it as a single named constant, `new BigDecimal("0.16")`. Don't hardcode other tax rates.
-
-**Known violations (to fix):**
-- `app/loa/service/LoaLoanService.java` defines `TAX_RATE = BigDecimal.valueOf(20/100); //KKDF + BSMV` (Turkish taxes), and it's used in the loan and late-fee calculations. Replace it with IVA 16%.
-  - Also, `20/100` is integer division, so `TAX_RATE` is actually `0` today. Whoever fixes this must expect the calculation results and tests to change.
+- The tax is **IVA at 16%**, applied to loan interest (and late-fee interest), not to principal.
+- The rate is configurable through the `onlinebankingrestapi.loan.iva-rate` property (env var `ONLINEBANKINGRESTAPI_LOAN_IVARATE`), bound to `app/loa/config/LoaLoanProperties`. Its default is the single named constant `LoaLoanProperties.DEFAULT_IVA_RATE = new BigDecimal("0.16")`. Don't hardcode tax rates anywhere else; inject `LoaLoanProperties` instead.

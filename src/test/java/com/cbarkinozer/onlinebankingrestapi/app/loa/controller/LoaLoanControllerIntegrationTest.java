@@ -25,6 +25,7 @@ import org.springframework.web.context.WebApplicationContext;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -68,6 +69,9 @@ class LoaLoanControllerIntegrationTest extends BaseTest {
         ).andExpect(status().isOk()).andReturn();
 
         assertTrue(isSuccess(result));
+        Map<?, ?> data = (Map<?, ?>) getRestResponse(result).getData();
+        assertEquals(0, new BigDecimal("0.16").compareTo(new BigDecimal(data.get("ivaRate").toString())));
+        assertEquals(0, new BigDecimal("183.168").compareTo(new BigDecimal(data.get("ivaAmount").toString())));
     }
 
     @Test
