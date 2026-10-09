@@ -2,7 +2,7 @@ package com.cbarkinozer.onlinebankingrestapi.app.crd.dto;
 
 import lombok.Data;
 
-import jakarta.validation.constraints.NotNull;
+import javax.validation.constraints.NotNull;
 import java.math.BigDecimal;
 
 @Data

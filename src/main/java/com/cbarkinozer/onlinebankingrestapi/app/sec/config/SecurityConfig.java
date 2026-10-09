@@ -3,23 +3,19 @@ package com.cbarkinozer.onlinebankingrestapi.app.sec.config;
 
 import com.cbarkinozer.onlinebankingrestapi.app.sec.security.JwtAuthenticationEntryPoint;
 import com.cbarkinozer.onlinebankingrestapi.app.sec.security.JwtAuthenticationFilter;
-import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.ProviderManager;
-import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.BeanIds;
-import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -31,7 +27,7 @@ import java.util.Collections;
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
-public class SecurityConfig {
+public class SecurityConfig extends WebSecurityConfigurerAdapter {
 
     private final UserDetailsService userDetailsService;
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
@@ -47,13 +43,9 @@ public class SecurityConfig {
     }
 
     @Bean(BeanIds.AUTHENTICATION_MANAGER)
-    public AuthenticationManager authenticationManager() {
-
-        DaoAuthenticationProvider authenticationProvider = new DaoAuthenticationProvider();
-        authenticationProvider.setUserDetailsService(userDetailsService);
-        authenticationProvider.setPasswordEncoder(passwordEncoder());
-
-        return new ProviderManager(authenticationProvider);
+    @Override
+    public AuthenticationManager authenticationManagerBean() throws Exception {
+        return super.authenticationManagerBean();
     }
 
     @Bean
@@ -77,29 +69,34 @@ public class SecurityConfig {
         return new CorsFilter(source);
     }
 
-    @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) throws Exception {
+    @Override
+    protected void configure(AuthenticationManagerBuilder auth) throws Exception {
+
+        auth
+                .userDetailsService(userDetailsService)
+                .passwordEncoder(passwordEncoder());
+    }
+
+    @Override
+    protected void configure(HttpSecurity httpSecurity) throws Exception {
 
         httpSecurity
-                .cors(Customizer.withDefaults())
-                .csrf(AbstractHttpConfigurer::disable)
-                .exceptionHandling(exceptionHandling -> exceptionHandling
-                        .authenticationEntryPoint(jwtAuthenticationEntryPoint))
-                .sessionManagement(sessionManagement -> sessionManagement
-                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(authorize -> authorize
-                        // Spring Security 6 also secures error/forward dispatches; keep them open as in Security 5
-                        .dispatcherTypeMatchers(DispatcherType.ERROR, DispatcherType.FORWARD).permitAll()
-                        .requestMatchers("/auth/**",
-                                "/swagger-ui/**",
-                                "/swagger-ui.html",
-                                "/v3/api-docs/**"
-                        )
-                        .permitAll()
-                        .anyRequest().authenticated()
+                .cors()
+                .and()
+                .csrf().disable()
+                .exceptionHandling().authenticationEntryPoint(jwtAuthenticationEntryPoint)
+                .and()
+                .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                .and()
+                .authorizeRequests()
+                .antMatchers("/auth/**",
+                        "/swagger-ui/**",
+                        "/swagger-ui.html",
+                        "/v3/api-docs/**"
                 )
-                .addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
+                .permitAll()
+                .anyRequest().authenticated();
 
-        return httpSecurity.build();
+        httpSecurity.addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
     }
 }
