@@ -5,7 +5,7 @@ Line of code count : 9000+ lines
 Prototype project's line of code count and documentation time is not included.  
 
 ### Technologies  
-Java 11   
+Java 21   
 Spring Boot(rest api)   
 Maven(build automation tool)  
 Lombok(eliminates boilerplate code)    
