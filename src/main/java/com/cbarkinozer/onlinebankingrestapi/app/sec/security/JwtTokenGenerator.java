@@ -4,6 +4,7 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
+import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
@@ -18,6 +19,13 @@ public class JwtTokenGenerator {
 
     @Value("${onlinebankingrestapi.jwt.security.expire.time}")
     private Long EXPIRE_TIME;
+
+    @PostConstruct
+    void validateAppKey() {
+        if (APP_KEY == null || APP_KEY.isBlank()) {
+            throw new IllegalStateException("JWT signing key is not configured; set the JWT_SECRET environment variable");
+        }
+    }
 
     public String generateJwtToken(Authentication authentication){
 
