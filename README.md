@@ -33,13 +33,15 @@ https://ibb.co/phwhSBX
 ### To Run  
 Pull the project.
 Create a database named "online-banking-rest-api" in postgresql.  
-Open src>main>resources>"application.properties" file.
-Change following:   
+Secrets are not stored in `application.properties`; provide them as environment variables (or from a secrets manager):
 ```
-spring.jpa.hibernate.ddl-auto=create  
-spring.datasource.username=[your postgresql username here(probably postgres)]  
-spring.datasource.password=[your postgresql password here]  
+export DB_PASSWORD=[your postgresql password here]
+export JWT_SECRET=[long random value, e.g. output of: openssl rand -base64 64]
+# optional, defaults shown
+export DB_URL=jdbc:postgresql://localhost:5432/online-banking-rest-api
+export DB_USERNAME=postgres
 ```
+The application refuses to start if `DB_PASSWORD` or `JWT_SECRET` is missing.
 **From here, you can run the application if you will not use kafka messaging feature**
 For Kafka, I used a docker container.   
 Create a "docker-compose.yml" file and add the following code in it.  

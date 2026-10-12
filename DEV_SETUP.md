@@ -48,12 +48,15 @@ Postgres gives exactly the same per-class counts.
 ```bash
 sudo apt-get install -y postgresql
 sudo pg_ctlcluster 14 main start
-sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'barorkar99';"
+export DB_PASSWORD="$(openssl rand -base64 24)"
+sudo -u postgres psql -c "ALTER USER postgres PASSWORD '$DB_PASSWORD';"
 sudo -u postgres psql -c 'CREATE DATABASE "online-banking-rest-api";'
 ```
 
-The credentials match `src/main/resources/application.properties`. The schema is
-created by Hibernate (`ddl-auto=create`) when the app starts.
+Credentials are read from the environment, not from `application.properties`:
+`DB_PASSWORD` and `JWT_SECRET` are required (the app fails to start without them);
+`DB_URL` and `DB_USERNAME` are optional and default to the local database and `postgres`.
+The schema is created by Hibernate (`ddl-auto=create`) when the app starts.
 
 ## 4. Kafka (optional)
 
@@ -65,6 +68,7 @@ warnings. To run one, save the `docker-compose.yml` from README.md and run
 
 ```bash
 ./mvnw -DskipTests package
+export JWT_SECRET="$(openssl rand -base64 64)"   # plus DB_PASSWORD from step 3
 java -jar target/onlinebankingrestapi-0.0.1-SNAPSHOT.jar   # or ./mvnw spring-boot:run
 curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8080/swagger-ui/index.html   # 200
 ```
